@@ -1,0 +1,53 @@
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DayCell } from "./day-cell";
+import type { Goal } from "@/lib/validators";
+import { format } from "date-fns";
+
+type GoalCardProps = {
+  goal: Goal;
+  dailyData: Record<string, number>;
+  days: Date[];
+};
+
+export function GoalCard({ goal, dailyData, days }: GoalCardProps) {
+  // Today's total
+  const todayStr = format(new Date(), "yyyy-MM-dd");
+  const todayValue = dailyData[todayStr] ?? 0;
+  const remaining = goal.target_value - todayValue;
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">{goal.name}</CardTitle>
+          <span className="text-sm text-muted-foreground">
+            {Math.round(todayValue)} / {goal.target_value} {goal.unit}
+          </span>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {remaining > 0
+            ? `${Math.round(remaining)} ${goal.unit} remaining today`
+            : `Over by ${Math.round(Math.abs(remaining))} ${goal.unit}`}
+        </p>
+      </CardHeader>
+      <CardContent>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {days.map((day) => {
+            const dateStr = format(day, "yyyy-MM-dd");
+            const value = dailyData[dateStr] ?? null;
+            return (
+              <DayCell
+                key={dateStr}
+                date={dateStr}
+                dayLabel={format(day, "EEE")}
+                value={value}
+                target={goal.target_value}
+                unit={goal.unit}
+              />
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
