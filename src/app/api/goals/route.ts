@@ -4,8 +4,8 @@ import { goalSchema } from "@/lib/validators";
 
 export async function GET() {
   const supabase = await createSupabaseServer();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -20,8 +20,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const supabase = await createSupabaseServer();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
 
   const { data, error } = await supabase
     .from("goals")
-    .insert({ ...parsed.data, sort_order: nextOrder, user_id: user.id })
+    .insert({ ...parsed.data, sort_order: nextOrder, user_id: session.user.id })
     .select()
     .single();
 

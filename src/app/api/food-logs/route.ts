@@ -4,8 +4,8 @@ import { foodLogSchema } from "@/lib/validators";
 
 export async function GET(request: Request) {
   const supabase = await createSupabaseServer();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const { searchParams } = new URL(request.url);
@@ -41,8 +41,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { data: { user }, error: authErr } = await supabase.auth.getUser();
-  if (authErr || !user) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
 
   const { data: foodLog, error: logError } = await supabase
     .from("food_logs")
-    .insert({ food_name, logged_at, user_id: user.id })
+    .insert({ food_name, logged_at, user_id: session.user.id })
     .select()
     .single();
 

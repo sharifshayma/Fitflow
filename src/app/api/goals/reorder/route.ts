@@ -4,8 +4,8 @@ import { reorderSchema } from "@/lib/validators";
 
 export async function PUT(request: Request) {
   const supabase = await createSupabaseServer();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const body = await request.json();
