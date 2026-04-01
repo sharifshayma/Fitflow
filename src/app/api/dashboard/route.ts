@@ -3,8 +3,8 @@ import { createSupabaseServer } from "@/lib/supabase-server";
 
 export async function GET(request: Request) {
   const supabase = await createSupabaseServer();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const { searchParams } = new URL(request.url);
@@ -18,22 +18,21 @@ export async function GET(request: Request) {
 
   const offsetMinutes = tz ? parseInt(tz, 10) : 0;
 
-  // Get all goals
-  const { data: goals, error: goalsError } = await supabase
-    .from("goals")
-    .select("*")
-    .order("sort_order");
+  // Fetch goals and food logs in parallel
+  const [goalsResult, logsResult] = await Promise.all([
+    supabase.from("goals").select("*").order("sort_order"),
+    supabase
+      .from("food_logs")
+      .select("id, logged_at, food_log_values(goal_id, value)")
+      .gte("logged_at", new Date(new Date(`${from}T00:00:00`).getTime() + offsetMinutes * 60000).toISOString())
+      .lt("logged_at", new Date(new Date(`${to}T00:00:00`).getTime() + offsetMinutes * 60000 + 24 * 60 * 60 * 1000).toISOString()),
+  ]);
 
-  if (goalsError) return NextResponse.json({ error: goalsError.message }, { status: 500 });
+  if (goalsResult.error) return NextResponse.json({ error: goalsResult.error.message }, { status: 500 });
+  if (logsResult.error) return NextResponse.json({ error: logsResult.error.message }, { status: 500 });
 
-  // Get food logs with values in date range
-  const { data: foodLogs, error: logsError } = await supabase
-    .from("food_logs")
-    .select("id, logged_at, food_log_values(goal_id, value)")
-    .gte("logged_at", new Date(new Date(`${from}T00:00:00`).getTime() + offsetMinutes * 60000).toISOString())
-    .lt("logged_at", new Date(new Date(`${to}T00:00:00`).getTime() + offsetMinutes * 60000 + 24 * 60 * 60 * 1000).toISOString());
-
-  if (logsError) return NextResponse.json({ error: logsError.message }, { status: 500 });
+  const goals = goalsResult.data;
+  const foodLogs = logsResult.data;
 
   // Aggregate: { goalId -> { date -> totalValue } }
   const aggregated: Record<string, Record<string, number>> = {};

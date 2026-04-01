@@ -7,8 +7,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createSupabaseServer();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const { id } = await params;
@@ -34,8 +34,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createSupabaseServer();
-  const { data: { user }, error: authError2 } = await supabase.auth.getUser();
-  if (authError2 || !user) {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const { id } = await params;
