@@ -81,7 +81,7 @@ export default function LogPage() {
   };
 
   if (loading) {
-    return <p className="text-muted-foreground text-center py-8">Loading...</p>;
+    return null; // loading.tsx skeleton handles this
   }
 
   return (

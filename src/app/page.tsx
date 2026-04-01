@@ -41,7 +41,7 @@ export default function DashboardPage() {
   const canGoNext = isBefore(weekEnd, startOfDay(new Date()));
 
   if (loading && !data) {
-    return <p className="text-muted-foreground text-center py-8">Loading dashboard...</p>;
+    return null; // loading.tsx skeleton handles this
   }
 
   if (!data || !data.goals || data.goals.length === 0) {
