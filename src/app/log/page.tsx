@@ -1,39 +1,26 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { format, addDays, subDays, parseISO } from "date-fns";
-import type { Goal, FoodLogWithValues } from "@/lib/validators";
-import { FoodLogForm } from "@/components/food-log/food-log-form";
+import { mutate as globalMutate } from "swr";
+import type { FoodLogWithValues } from "@/lib/validators";
+import { LogDialog } from "@/components/food-log/log-dialog";
 import { FoodLogTable } from "@/components/food-log/food-log-table";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { useGoals } from "@/lib/swr/use-goals";
+import { useFoodLogs } from "@/lib/swr/use-food-logs";
+import { FoodSuggestions } from "@/components/food-log/food-suggestions";
 
 export default function LogPage() {
-  const [goals, setGoals] = useState<Goal[]>([]);
-  const [logs, setLogs] = useState<FoodLogWithValues[]>([]);
   const [formOpen, setFormOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [copySource, setCopySource] = useState<FoodLogWithValues | null>(null);
+  const [editSource, setEditSource] = useState<FoodLogWithValues | null>(null);
 
   const isToday = selectedDate === format(new Date(), "yyyy-MM-dd");
-
-  const fetchData = useCallback(async () => {
-    const tz = new Date().getTimezoneOffset();
-    const [goalsRes, logsRes] = await Promise.all([
-      fetch("/api/goals"),
-      fetch(`/api/food-logs?date=${selectedDate}&tz=${tz}`),
-    ]);
-    const goalsData = await goalsRes.json();
-    const logsData = await logsRes.json();
-    setGoals(Array.isArray(goalsData) ? goalsData : []);
-    setLogs(Array.isArray(logsData) ? logsData : []);
-    setLoading(false);
-  }, [selectedDate]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  const { goals } = useGoals();
+  const { logs, isLoading, mutate: mutateLogs } = useFoodLogs(selectedDate);
 
   // Listen for bottom nav "+" tap to open the form
   useEffect(() => {
@@ -42,46 +29,139 @@ export default function LogPage() {
     return () => window.removeEventListener("open-food-log-form", handleOpenForm);
   }, []);
 
-  const handleSubmit = async (data: {
+  const handleSubmit = (data: {
     food_name: string;
     logged_at: string;
     values: { goal_id: string; value: number }[];
   }) => {
-    const res = await fetch("/api/food-logs", {
+    // Optimistic: add temp entry immediately
+    const optimisticEntry: FoodLogWithValues = {
+      id: `temp-${Date.now()}`,
+      food_name: data.food_name,
+      logged_at: data.logged_at,
+      created_at: new Date().toISOString(),
+      food_log_values: data.values.map((v) => ({
+        id: `temp-${v.goal_id}`,
+        food_log_id: `temp-${Date.now()}`,
+        goal_id: v.goal_id,
+        value: v.value,
+      })),
+    };
+
+    mutateLogs((current) => [optimisticEntry, ...(current ?? [])], {
+      revalidate: false,
+    });
+
+    fetch("/api/food-logs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
+    }).then((res) => {
+      if (res.ok) {
+        const name = data.food_name.toLowerCase();
+        toast.success(
+          name === "water" ? "Water logged" : name === "weight" ? "Weight logged" : "Food logged"
+        );
+        mutateLogs();
+        globalMutate(
+          (key) => typeof key === "string" && key.startsWith("/api/dashboard"),
+          undefined,
+          { revalidate: true }
+        );
+      } else {
+        toast.error("Failed to log entry");
+        mutateLogs();
+      }
     });
-    if (res.ok) {
-      toast.success("Food logged");
-      fetchData();
-    } else {
-      toast.error("Failed to log food");
-    }
   };
 
   const handleDelete = async (id: string) => {
+    mutateLogs((current) => current?.filter((log) => log.id !== id), {
+      revalidate: false,
+    });
+
     const res = await fetch(`/api/food-logs/${id}`, { method: "DELETE" });
     if (res.ok) {
       toast.success("Entry deleted");
-      fetchData();
+      mutateLogs();
+      globalMutate(
+        (key) => typeof key === "string" && key.startsWith("/api/dashboard"),
+        undefined,
+        { revalidate: true }
+      );
     } else {
       toast.error("Failed to delete entry");
+      mutateLogs();
     }
   };
 
   const handleCopy = (log: FoodLogWithValues) => {
     setCopySource(log);
+    setEditSource(null);
     setFormOpen(true);
+  };
+
+  const handleEdit = (log: FoodLogWithValues) => {
+    setEditSource(log);
+    setCopySource(null);
+    setFormOpen(true);
+  };
+
+  const handleUpdate = (id: string, data: {
+    food_name: string;
+    logged_at: string;
+    values: { goal_id: string; value: number }[];
+  }) => {
+    // Optimistic: update entry immediately
+    mutateLogs((current) =>
+      current?.map((log) =>
+        log.id === id
+          ? {
+              ...log,
+              food_name: data.food_name,
+              logged_at: data.logged_at,
+              food_log_values: data.values.map((v) => ({
+                id: `temp-${v.goal_id}`,
+                food_log_id: id,
+                goal_id: v.goal_id,
+                value: v.value,
+              })),
+            }
+          : log
+      ),
+      { revalidate: false }
+    );
+
+    fetch(`/api/food-logs/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    }).then((res) => {
+      if (res.ok) {
+        toast.success("Entry updated");
+        mutateLogs();
+        globalMutate(
+          (key) => typeof key === "string" && key.startsWith("/api/dashboard"),
+          undefined,
+          { revalidate: true }
+        );
+      } else {
+        toast.error("Failed to update entry");
+        mutateLogs();
+      }
+    });
   };
 
   const handleFormOpenChange = (open: boolean) => {
     setFormOpen(open);
-    if (!open) setCopySource(null);
+    if (!open) {
+      setCopySource(null);
+      setEditSource(null);
+    }
   };
 
-  if (loading) {
-    return null; // loading.tsx skeleton handles this
+  if (isLoading && logs.length === 0) {
+    return null;
   }
 
   return (
@@ -92,7 +172,7 @@ export default function LogPage() {
             &larr;
           </Button>
           <div>
-            <h1 className="text-2xl font-bold">Food Log</h1>
+            <h1 className="text-2xl font-bold">Fit Log</h1>
             <p className="text-muted-foreground">
               {isToday ? "Today, " : ""}{format(parseISO(selectedDate), "MMMM d, yyyy")}
             </p>
@@ -106,17 +186,26 @@ export default function LogPage() {
         </Button>
       </div>
 
-      <FoodLogTable logs={logs} goals={goals} onDelete={handleDelete} onCopy={handleCopy} />
+      {isToday && <FoodSuggestions onSelect={handleCopy} />}
 
-      <FoodLogForm
+      <FoodLogTable logs={logs} goals={goals} onDelete={handleDelete} onCopy={handleCopy} onEdit={handleEdit} />
+
+      <LogDialog
         open={formOpen}
         onOpenChange={handleFormOpenChange}
         goals={goals}
         onSubmit={handleSubmit}
+        onEdit={handleUpdate}
         initialData={copySource ? {
           food_name: copySource.food_name,
           logged_at: copySource.logged_at,
           values: copySource.food_log_values.map(v => ({ goal_id: v.goal_id, value: v.value })),
+        } : null}
+        editData={editSource ? {
+          id: editSource.id,
+          food_name: editSource.food_name,
+          logged_at: editSource.logged_at,
+          values: editSource.food_log_values.map(v => ({ goal_id: v.goal_id, value: v.value })),
         } : null}
       />
     </div>

@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import type { GoalDirection } from "@/lib/validators";
 
 type DayCellProps = {
   date: string;
@@ -6,11 +7,15 @@ type DayCellProps = {
   value: number | null;
   target: number;
   unit: string;
+  direction: GoalDirection;
 };
 
-export function DayCell({ dayLabel, value, target, unit }: DayCellProps) {
+export function DayCell({ dayLabel, value, target, unit, direction }: DayCellProps) {
   const hasData = value !== null && value > 0;
-  const isOver = hasData && value > target;
+  // max goals: red when over target. min goals: red when under target.
+  const isOffTrack = hasData && (
+    direction === "max" ? value > target : value < target
+  );
   const percentage = hasData ? Math.min((value / target) * 100, 100) : 0;
 
   return (
@@ -18,8 +23,8 @@ export function DayCell({ dayLabel, value, target, unit }: DayCellProps) {
       className={cn(
         "flex flex-col items-center justify-center rounded-xl p-3 min-w-[4.5rem] transition-colors",
         !hasData && "bg-muted/50",
-        hasData && !isOver && "bg-emerald-50 border border-emerald-200",
-        hasData && isOver && "bg-red-50 border border-red-200"
+        hasData && !isOffTrack && "bg-emerald-50 border border-emerald-200",
+        hasData && isOffTrack && "bg-red-50 border border-red-200"
       )}
     >
       <span className="text-xs font-medium text-muted-foreground">{dayLabel}</span>
@@ -27,8 +32,8 @@ export function DayCell({ dayLabel, value, target, unit }: DayCellProps) {
         className={cn(
           "text-lg font-bold mt-1",
           !hasData && "text-muted-foreground/40",
-          hasData && !isOver && "text-emerald-700",
-          hasData && isOver && "text-red-700"
+          hasData && !isOffTrack && "text-emerald-700",
+          hasData && isOffTrack && "text-red-700"
         )}
       >
         {hasData ? Math.round(value) : "-"}
@@ -39,7 +44,7 @@ export function DayCell({ dayLabel, value, target, unit }: DayCellProps) {
           <div
             className={cn(
               "h-full rounded-full transition-all",
-              isOver ? "bg-red-400" : "bg-emerald-400"
+              isOffTrack ? "bg-red-400" : "bg-emerald-400"
             )}
             style={{ width: `${percentage}%` }}
           />

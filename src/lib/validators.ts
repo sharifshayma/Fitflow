@@ -1,9 +1,17 @@
 import { z } from "zod";
 
+export const goalTypeOptions = ["food", "water", "weight"] as const;
+export const goalDirectionOptions = ["min", "max"] as const;
+
+export type GoalType = (typeof goalTypeOptions)[number];
+export type GoalDirection = (typeof goalDirectionOptions)[number];
+
 export const goalSchema = z.object({
   name: z.string().min(1, "Name is required"),
   unit: z.string().min(1, "Unit is required"),
   target_value: z.coerce.number().positive("Target must be a positive number"),
+  goal_type: z.enum(goalTypeOptions).default("food"),
+  direction: z.enum(goalDirectionOptions).default("max"),
 });
 
 export const foodLogSchema = z.object({
@@ -29,6 +37,8 @@ export type Goal = {
   name: string;
   unit: string;
   target_value: number;
+  goal_type: GoalType;
+  direction: GoalDirection;
   sort_order: number;
   created_at: string;
   updated_at: string;

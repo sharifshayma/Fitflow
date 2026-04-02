@@ -25,9 +25,13 @@ export function GoalCard({ goal, dailyData, days }: GoalCardProps) {
           </span>
         </div>
         <p className="text-xs text-muted-foreground">
-          {remaining > 0
-            ? `${Math.round(remaining)} ${goal.unit} remaining today`
-            : `Over by ${Math.round(Math.abs(remaining))} ${goal.unit}`}
+          {goal.direction === "min"
+            ? remaining > 0
+              ? `${Math.round(remaining)} ${goal.unit} more to go`
+              : `Target reached! +${Math.round(Math.abs(remaining))} ${goal.unit}`
+            : remaining > 0
+              ? `${Math.round(remaining)} ${goal.unit} remaining today`
+              : `Over by ${Math.round(Math.abs(remaining))} ${goal.unit}`}
         </p>
       </CardHeader>
       <CardContent>
@@ -43,6 +47,7 @@ export function GoalCard({ goal, dailyData, days }: GoalCardProps) {
                 value={value}
                 target={goal.target_value}
                 unit={goal.unit}
+                direction={goal.direction}
               />
             );
           })}

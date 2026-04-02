@@ -10,9 +10,10 @@ type FoodLogTableProps = {
   goals: Goal[];
   onDelete: (id: string) => void;
   onCopy: (log: FoodLogWithValues) => void;
+  onEdit: (log: FoodLogWithValues) => void;
 };
 
-export function FoodLogTable({ logs, goals, onDelete, onCopy }: FoodLogTableProps) {
+export function FoodLogTable({ logs, goals, onDelete, onCopy, onEdit }: FoodLogTableProps) {
   if (logs.length === 0) {
     return (
       <div className="rounded-lg border border-dashed p-8 text-center text-muted-foreground">
@@ -48,6 +49,13 @@ export function FoodLogTable({ logs, goals, onDelete, onCopy }: FoodLogTableProp
               </div>
             </div>
             <div className="flex flex-col gap-1 shrink-0">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onEdit(log)}
+              >
+                Edit
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"

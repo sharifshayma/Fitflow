@@ -2,7 +2,7 @@
 
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { goalSchema, type GoalInput, type Goal } from "@/lib/validators";
+import { goalSchema, type GoalInput, type Goal, goalTypeOptions, goalDirectionOptions } from "@/lib/validators";
 import {
   Dialog,
   DialogContent,
@@ -30,8 +30,8 @@ export function GoalForm({ open, onOpenChange, onSubmit, defaultValues }: GoalFo
   } = useForm<GoalInput>({
     resolver: zodResolver(goalSchema) as any,
     defaultValues: defaultValues
-      ? { name: defaultValues.name, unit: defaultValues.unit, target_value: defaultValues.target_value }
-      : { name: "", unit: "", target_value: 0 },
+      ? { name: defaultValues.name, unit: defaultValues.unit, target_value: defaultValues.target_value, goal_type: defaultValues.goal_type ?? "food", direction: defaultValues.direction ?? "max" }
+      : { name: "", unit: "", target_value: 0, goal_type: "food" as const, direction: "max" as const },
   });
 
   const handleFormSubmit = async (data: GoalInput) => {
@@ -59,16 +59,43 @@ export function GoalForm({ open, onOpenChange, onSubmit, defaultValues }: GoalFo
           </div>
           <div className="space-y-2">
             <Label htmlFor="target_value">Daily Target</Label>
-            <Input
-              id="target_value"
-              type="number"
-              step="any"
-              placeholder="e.g., 2000"
-              {...register("target_value")}
-            />
+            <div className="flex gap-2">
+              <select
+                id="direction"
+                className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0"
+                {...register("direction")}
+              >
+                {goalDirectionOptions.map((d) => (
+                  <option key={d} value={d}>
+                    {d === "max" ? "Max" : "Min"}
+                  </option>
+                ))}
+              </select>
+              <Input
+                id="target_value"
+                type="number"
+                step="any"
+                placeholder="e.g., 2000"
+                {...register("target_value")}
+              />
+            </div>
             {errors.target_value && (
               <p className="text-sm text-destructive">{errors.target_value.message}</p>
             )}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="goal_type">Type</Label>
+            <select
+              id="goal_type"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              {...register("goal_type")}
+            >
+              {goalTypeOptions.map((t) => (
+                <option key={t} value={t}>
+                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
