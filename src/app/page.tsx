@@ -1,46 +1,25 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { format, startOfWeek, addWeeks, eachDayOfInterval, endOfWeek, isBefore, startOfDay } from "date-fns";
-import type { Goal } from "@/lib/validators";
+import { useState } from "react";
+import { startOfWeek, addWeeks, eachDayOfInterval, endOfWeek, isBefore, startOfDay } from "date-fns";
 import { GoalCard } from "@/components/dashboard/goal-card";
 import { DateNavigator } from "@/components/dashboard/date-navigator";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-
-type DashboardData = {
-  goals: Goal[];
-  aggregated: Record<string, Record<string, number>>;
-};
+import { useDashboard } from "@/lib/swr/use-dashboard";
 
 export default function DashboardPage() {
   const [weekStart, setWeekStart] = useState(() =>
     startOfWeek(new Date(), { weekStartsOn: 1 })
   );
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [loading, setLoading] = useState(true);
 
   const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
   const days = eachDayOfInterval({ start: weekStart, end: weekEnd });
-
-  const fetchDashboard = useCallback(async () => {
-    setLoading(true);
-    const from = format(weekStart, "yyyy-MM-dd");
-    const to = format(addWeeks(weekStart, 1), "yyyy-MM-dd");
-    const tz = new Date().getTimezoneOffset();
-    const res = await fetch(`/api/dashboard?from=${from}&to=${to}&tz=${tz}`);
-    const json = await res.json();
-    setData(json);
-    setLoading(false);
-  }, [weekStart]);
-
-  useEffect(() => {
-    fetchDashboard();
-  }, [fetchDashboard]);
+  const { data, isLoading } = useDashboard(weekStart);
 
   const canGoNext = isBefore(weekEnd, startOfDay(new Date()));
 
-  if (loading && !data) {
+  if (isLoading && !data) {
     return null; // loading.tsx skeleton handles this
   }
 

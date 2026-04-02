@@ -79,13 +79,13 @@ export function FoodLogForm({ open, onOpenChange, goals, onSubmit, initialData }
     }
   }, [open, initialData]);
 
-  const handleFormSubmit = async (data: FormValues) => {
+  const handleFormSubmit = (data: FormValues) => {
     const values = goals.map((g) => ({
       goal_id: g.id,
       value: Number(data[`goal_${g.id}` as keyof FormValues]) || 0,
     }));
 
-    await onSubmit({
+    onSubmit({
       food_name: data.food_name,
       logged_at: new Date(data.logged_at).toISOString(),
       values,
