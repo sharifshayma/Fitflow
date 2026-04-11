@@ -37,6 +37,13 @@ yarn-error.log*
 .claude/CLAUDE.local.md
 .claude/settings.local.json
 
+# MCP config (contains user credentials)
+.mcp.json
+
+# MCP server build artifacts
+mcp-server/node_modules
+mcp-server/dist
+
 # vercel
 .vercel
 
