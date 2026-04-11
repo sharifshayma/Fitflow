@@ -1,5 +1,6 @@
 import { GoalList } from "@/components/goals/goal-list";
 import { LogoutButton } from "@/components/layout/logout-button";
+import { ApiToken } from "@/components/settings/api-token";
 import { Separator } from "@/components/ui/separator";
 
 export default function SettingsPage() {
@@ -12,6 +13,8 @@ export default function SettingsPage() {
         </p>
       </div>
       <GoalList />
+      <Separator />
+      <ApiToken />
       <Separator />
       <div className="space-y-3">
         <h2 className="text-lg font-semibold">Account</h2>

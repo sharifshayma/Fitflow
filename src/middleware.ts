@@ -41,6 +41,7 @@ export async function middleware(request: NextRequest) {
     !user &&
     !request.nextUrl.pathname.startsWith("/login") &&
     !request.nextUrl.pathname.startsWith("/auth") &&
+    !request.nextUrl.pathname.startsWith("/authorize") &&
     !request.nextUrl.pathname.startsWith("/api/auth")
   ) {
     const url = request.nextUrl.clone();
@@ -68,6 +69,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|api/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|json)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/|\\.well-known/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|json)$).*)",
   ],
 };

@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { useGoals } from "@/lib/swr/use-goals";
 import { useFoodLogs } from "@/lib/swr/use-food-logs";
 import { FoodSuggestions } from "@/components/food-log/food-suggestions";
+import { DailySummary } from "@/components/food-log/daily-summary";
 
 export default function LogPage() {
   const [formOpen, setFormOpen] = useState(false);
@@ -185,6 +186,8 @@ export default function LogPage() {
           +
         </Button>
       </div>
+
+      <DailySummary logs={logs} goals={goals} />
 
       {isToday && <FoodSuggestions onSelect={handleCopy} />}
 

@@ -8,9 +8,10 @@ type DayCellProps = {
   target: number;
   unit: string;
   direction: GoalDirection;
+  onClick?: () => void;
 };
 
-export function DayCell({ dayLabel, value, target, unit, direction }: DayCellProps) {
+export function DayCell({ dayLabel, value, target, unit, direction, onClick }: DayCellProps) {
   const hasData = value !== null && value > 0;
   // max goals: red when over target. min goals: red when under target.
   const isOffTrack = hasData && (
@@ -20,11 +21,13 @@ export function DayCell({ dayLabel, value, target, unit, direction }: DayCellPro
 
   return (
     <div
+      onClick={hasData ? onClick : undefined}
       className={cn(
         "flex flex-col items-center justify-center rounded-xl p-3 min-w-[4.5rem] transition-colors",
         !hasData && "bg-muted/50",
         hasData && !isOffTrack && "bg-emerald-50 border border-emerald-200",
-        hasData && isOffTrack && "bg-red-50 border border-red-200"
+        hasData && isOffTrack && "bg-red-50 border border-red-200",
+        hasData && onClick && "cursor-pointer hover:ring-2 hover:ring-primary/20 active:scale-95"
       )}
     >
       <span className="text-xs font-medium text-muted-foreground">{dayLabel}</span>
@@ -36,7 +39,7 @@ export function DayCell({ dayLabel, value, target, unit, direction }: DayCellPro
           hasData && isOffTrack && "text-red-700"
         )}
       >
-        {hasData ? Math.round(value) : "-"}
+        {hasData ? (target % 1 !== 0 ? value.toFixed(1) : Math.round(value)) : "-"}
       </span>
       <span className="text-[10px] text-muted-foreground">{unit}</span>
       {hasData && (
