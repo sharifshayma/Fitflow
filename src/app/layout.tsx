@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import { Toaster } from "@/components/ui/sonner";
 import { AppShell } from "@/components/layout/app-shell";
 import "./globals.css";
@@ -42,6 +43,7 @@ export default function RootLayout({
     <html lang="en" className={`${jakarta.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col font-sans">
         <AppShell>{children}</AppShell>
+        <Analytics />
         <Toaster />
       </body>
     </html>
