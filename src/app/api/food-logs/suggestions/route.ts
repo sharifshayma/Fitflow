@@ -62,5 +62,7 @@ export async function GET(request: Request) {
   });
 
   // Return top 3
-  return NextResponse.json(unique.slice(0, 3));
+  return NextResponse.json(unique.slice(0, 3), {
+    headers: { "Cache-Control": "private, max-age=120, stale-while-revalidate=300" },
+  });
 }

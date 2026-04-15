@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { cn } from "@/lib/utils";
 import type { GoalDirection } from "@/lib/validators";
 
@@ -11,7 +12,7 @@ type DayCellProps = {
   onClick?: () => void;
 };
 
-export function DayCell({ dayLabel, value, target, unit, direction, onClick }: DayCellProps) {
+export const DayCell = memo(function DayCell({ dayLabel, value, target, unit, direction, onClick }: DayCellProps) {
   const hasData = value !== null && value > 0;
   // max goals: red when over target. min goals: red when under target.
   const isOffTrack = hasData && (
@@ -55,4 +56,4 @@ export function DayCell({ dayLabel, value, target, unit, direction, onClick }: D
       )}
     </div>
   );
-}
+});
