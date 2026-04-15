@@ -1,11 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, memo } from "react";
+import dynamic from "next/dynamic";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DayCell } from "./day-cell";
-import { DayDetailDialog } from "./day-detail-dialog";
 import type { Goal } from "@/lib/validators";
 import { format } from "date-fns";
+
+const DayDetailDialog = dynamic(
+  () => import("./day-detail-dialog").then((mod) => mod.DayDetailDialog),
+  { ssr: false }
+);
 
 type GoalCardProps = {
   goal: Goal;
@@ -13,8 +18,16 @@ type GoalCardProps = {
   days: Date[];
 };
 
-export function GoalCard({ goal, dailyData, days }: GoalCardProps) {
+export const GoalCard = memo(function GoalCard({ goal, dailyData, days }: GoalCardProps) {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  const handleDayCellClick = useCallback((dateStr: string) => {
+    setSelectedDate(dateStr);
+  }, []);
+
+  const handleDialogClose = useCallback((open: boolean) => {
+    if (!open) setSelectedDate(null);
+  }, []);
 
   const todayStr = format(new Date(), "yyyy-MM-dd");
   const todayValue = dailyData[todayStr] ?? 0;
@@ -55,7 +68,7 @@ export function GoalCard({ goal, dailyData, days }: GoalCardProps) {
                   target={goal.target_value}
                   unit={goal.unit}
                   direction={goal.direction}
-                  onClick={() => setSelectedDate(dateStr)}
+                  onClick={() => handleDayCellClick(dateStr)}
                 />
               );
             })}
@@ -70,11 +83,9 @@ export function GoalCard({ goal, dailyData, days }: GoalCardProps) {
           goalUnit={goal.unit}
           date={selectedDate}
           open={!!selectedDate}
-          onOpenChange={(open) => {
-            if (!open) setSelectedDate(null);
-          }}
+          onOpenChange={handleDialogClose}
         />
       )}
     </>
   );
-}
+});

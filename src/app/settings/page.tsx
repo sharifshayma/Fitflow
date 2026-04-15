@@ -1,7 +1,12 @@
-import { GoalList } from "@/components/goals/goal-list";
+import dynamic from "next/dynamic";
 import { LogoutButton } from "@/components/layout/logout-button";
 import { ApiToken } from "@/components/settings/api-token";
 import { Separator } from "@/components/ui/separator";
+
+const GoalList = dynamic(
+  () => import("@/components/goals/goal-list").then((mod) => mod.GoalList),
+  { loading: () => <p className="text-muted-foreground text-center py-8">Loading goals...</p> }
+);
 
 export default function SettingsPage() {
   return (

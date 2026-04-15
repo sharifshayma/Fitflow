@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { format, addDays, subDays, parseISO } from "date-fns";
 import { mutate as globalMutate } from "swr";
 import type { FoodLogWithValues } from "@/lib/validators";
-import { LogDialog } from "@/components/food-log/log-dialog";
+import dynamic from "next/dynamic";
 import { FoodLogTable } from "@/components/food-log/food-log-table";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -12,6 +12,11 @@ import { useGoals } from "@/lib/swr/use-goals";
 import { useFoodLogs } from "@/lib/swr/use-food-logs";
 import { FoodSuggestions } from "@/components/food-log/food-suggestions";
 import { DailySummary } from "@/components/food-log/daily-summary";
+
+const LogDialog = dynamic(
+  () => import("@/components/food-log/log-dialog").then((mod) => mod.LogDialog),
+  { ssr: false }
+);
 
 export default function LogPage() {
   const [formOpen, setFormOpen] = useState(false);
