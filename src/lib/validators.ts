@@ -20,7 +20,7 @@ export const foodLogSchema = z.object({
   values: z.array(
     z.object({
       goal_id: z.string().uuid(),
-      value: z.coerce.number().min(0, "Value must be 0 or greater"),
+      value: z.coerce.number(),
     })
   ),
 });
