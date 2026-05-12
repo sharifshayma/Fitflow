@@ -30,7 +30,7 @@ export function DayDetailDialog({
   const { logs, isLoading } = useFoodLogs(open ? date : "");
 
   const filtered = logs.filter((log) =>
-    log.food_log_values.some((v) => v.goal_id === goalId && v.value > 0)
+    log.food_log_values.some((v) => v.goal_id === goalId && v.value !== 0)
   );
 
   const total = filtered.reduce((sum, log) => {
