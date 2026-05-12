@@ -25,7 +25,7 @@ export function DailySummary({ logs, goals }: DailySummaryProps) {
           goal.direction === "max"
             ? current > goal.target_value
             : current < goal.target_value;
-        const hasData = current > 0;
+        const hasData = current !== 0;
 
         return (
           <div

@@ -13,12 +13,12 @@ type DayCellProps = {
 };
 
 export const DayCell = memo(function DayCell({ dayLabel, value, target, unit, direction, onClick }: DayCellProps) {
-  const hasData = value !== null && value > 0;
+  const hasData = value !== null && value !== 0;
   // max goals: red when over target. min goals: red when under target.
   const isOffTrack = hasData && (
     direction === "max" ? value > target : value < target
   );
-  const percentage = hasData ? Math.min((value / target) * 100, 100) : 0;
+  const percentage = hasData ? Math.min(Math.max((value / target) * 100, 0), 100) : 0;
 
   return (
     <div

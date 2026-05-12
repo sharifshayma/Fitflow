@@ -64,7 +64,7 @@ function FoodFormContent({
     ...Object.fromEntries(
       goals.map((g) => [
         `goal_${g.id}`,
-        z.coerce.number().min(0, "Must be 0 or greater").default(0),
+        z.coerce.number().default(0),
       ])
     ),
   });
