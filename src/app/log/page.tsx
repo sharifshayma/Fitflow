@@ -70,7 +70,9 @@ export default function LogPage() {
         );
         mutateLogs();
         globalMutate(
-          (key) => typeof key === "string" && key.startsWith("/api/dashboard"),
+          (key) =>
+            typeof key === "string" &&
+            (key.startsWith("/api/dashboard") || key === "/api/food-logs/history"),
           undefined,
           { revalidate: true }
         );
