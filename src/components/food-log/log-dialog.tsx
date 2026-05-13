@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { ChevronDown, History } from "lucide-react";
 import type { Goal, GoalType, FoodLogWithValues } from "@/lib/validators";
 import {
   Dialog,
@@ -14,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useFoodHistory, type FoodHistoryItem } from "@/lib/swr/use-food-history";
 
 type SubmitData = {
   food_name: string;
@@ -38,6 +40,98 @@ function getCurrentLocalISO() {
   return new Date(now.getTime() - now.getTimezoneOffset() * 60000)
     .toISOString()
     .slice(0, 16);
+}
+
+// --- Food history dropdown ---
+function FoodHistoryDropdown({
+  history,
+  onPick,
+}: {
+  history: FoodHistoryItem[];
+  onPick: (item: FoodHistoryItem) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handlePointer = (e: MouseEvent) => {
+      if (!containerRef.current?.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", handlePointer);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handlePointer);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [open]);
+
+  const filtered = query.trim()
+    ? history.filter((h) => h.food_name.toLowerCase().includes(query.toLowerCase()))
+    : history;
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm transition-colors hover:bg-accent/50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 outline-none"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <span className="flex items-center gap-2 text-muted-foreground">
+          <History className="size-4" />
+          Choose from history
+        </span>
+        <ChevronDown className={`size-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="absolute left-0 right-0 top-full z-20 mt-1 rounded-lg border bg-popover shadow-md ring-1 ring-foreground/10">
+          <div className="border-b p-2">
+            <Input
+              type="text"
+              placeholder="Search…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <ul role="listbox" className="max-h-60 overflow-y-auto py-1">
+            {filtered.length === 0 ? (
+              <li className="px-3 py-2 text-sm text-muted-foreground">No matches</li>
+            ) : (
+              filtered.map((item) => (
+                <li key={item.food_name}>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={false}
+                    onClick={() => {
+                      onPick(item);
+                      setOpen(false);
+                      setQuery("");
+                    }}
+                    className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-accent"
+                  >
+                    <span className="truncate">{item.food_name}</span>
+                    <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                      ×{item.count}
+                    </span>
+                  </button>
+                </li>
+              ))
+            )}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // --- Food Form (inline) ---
@@ -75,6 +169,7 @@ function FoodFormContent({
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -86,6 +181,22 @@ function FoodFormContent({
   });
 
   const prefill = editData ?? initialData;
+  const isEditing = !!editData;
+
+  // Only fetch history when the dialog is open and we're creating a new entry.
+  const { history } = useFoodHistory(open && !isEditing);
+
+  const handlePickFromHistory = (item: FoodHistoryItem) => {
+    setValue("food_name", item.food_name, { shouldValidate: true, shouldDirty: true });
+    for (const g of goals) {
+      const match = item.values.find((v) => v.goal_id === g.id);
+      setValue(
+        `goal_${g.id}` as keyof FormValues,
+        (match?.value ?? 0) as unknown as FormValues[keyof FormValues],
+        { shouldDirty: true }
+      );
+    }
+  };
 
   useEffect(() => {
     if (open) {
@@ -105,8 +216,6 @@ function FoodFormContent({
       });
     }
   }, [open, initialData, editData]);
-
-  const isEditing = !!editData;
 
   const handleFormSubmit = (data: FormValues) => {
     const values = goals.map((g) => ({
@@ -129,6 +238,9 @@ function FoodFormContent({
 
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
+      {!isEditing && history.length > 0 && (
+        <FoodHistoryDropdown history={history} onPick={handlePickFromHistory} />
+      )}
       <div className="space-y-2">
         <Label htmlFor="food_name">Food Name</Label>
         <Input id="food_name" placeholder="e.g., Chicken Breast" {...register("food_name")} />
