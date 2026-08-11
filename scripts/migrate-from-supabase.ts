@@ -45,6 +45,7 @@ async function main() {
     )
   ).rows;
 
+  // Skip rows with no owner (user_id is null) — legacy pre-multi-user data.
   const goals = (
     await supa.query(
       `select id, user_id, name, unit, target_value,
@@ -52,27 +53,39 @@ async function main() {
               coalesce(direction, 'max') as direction,
               coalesce(sort_order, 0) as sort_order,
               created_at, updated_at
-       from public.goals`
+       from public.goals
+       where user_id is not null`
     )
   ).rows;
 
   const foodLogs = (
     await supa.query(
-      `select id, user_id, food_name, logged_at, created_at from public.food_logs`
+      `select id, user_id, food_name, logged_at, created_at
+       from public.food_logs
+       where user_id is not null`
     )
   ).rows;
 
-  const foodLogValues = (
+  const allValues = (
     await supa.query(
       `select id, food_log_id, goal_id, value from public.food_log_values`
     )
   ).rows;
 
-  log("Source row counts (Supabase):");
+  // Keep only values whose parent food_log AND referenced goal both survive the
+  // owner filter — otherwise they'd be orphaned FKs.
+  const goalIds = new Set(goals.map((g) => g.id));
+  const foodLogIds = new Set(foodLogs.map((f) => f.id));
+  const foodLogValues = allValues.filter(
+    (v) => foodLogIds.has(v.food_log_id) && goalIds.has(v.goal_id)
+  );
+  const droppedValues = allValues.length - foodLogValues.length;
+
+  log("Rows to import (owner-scoped; orphaned user_id=null rows skipped):");
   log(`  auth.users        : ${users.length}`);
   log(`  goals             : ${goals.length}`);
   log(`  food_logs         : ${foodLogs.length}`);
-  log(`  food_log_values   : ${foodLogValues.length}\n`);
+  log(`  food_log_values   : ${foodLogValues.length}  (dropped ${droppedValues} orphaned)\n`);
 
   if (users[0]) {
     log("Sample user:", { id: users[0].id, email: users[0].email, name: users[0].name });
