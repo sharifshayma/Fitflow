@@ -1,15 +1,6 @@
-export async function GET(request: Request) {
-  const url = new URL(request.url);
-  const origin = `${url.protocol}//${url.host}`;
+import { oAuthDiscoveryMetadata } from "better-auth/plugins";
+import { auth } from "@/lib/auth";
 
-  return Response.json({
-    issuer: origin,
-    authorization_endpoint: `${origin}/authorize`,
-    token_endpoint: `${origin}/api/oauth/token`,
-    registration_endpoint: `${origin}/api/oauth/register`,
-    response_types_supported: ["code"],
-    grant_types_supported: ["authorization_code", "refresh_token"],
-    token_endpoint_auth_methods_supported: ["client_secret_post", "client_secret_basic"],
-    code_challenge_methods_supported: ["S256"],
-  });
-}
+// OAuth 2.0 Authorization Server Metadata (RFC 8414) — advertises the endpoints
+// registered by the better-auth MCP/OIDC plugin.
+export const GET = oAuthDiscoveryMetadata(auth);

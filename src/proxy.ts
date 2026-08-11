@@ -4,7 +4,7 @@ import { getSessionCookie } from "better-auth/cookies";
 // Pages reachable without a session. Everything else redirects to /login.
 // (API routes, /.well-known and static assets are excluded by the matcher below;
 // API routes validate the session themselves via getUserId.)
-const PUBLIC_PATHS = ["/login", "/forgot-password", "/reset-password", "/authorize"];
+const PUBLIC_PATHS = ["/login", "/forgot-password", "/reset-password"];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

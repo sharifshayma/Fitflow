@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
+import { mcp } from "better-auth/plugins";
 import { prisma } from "@/lib/prisma";
 
 // Send a password-reset email via Resend when configured; otherwise (dev, or
@@ -37,5 +38,19 @@ export const auth = betterAuth({
       await sendResetEmail(user.email, url);
     },
   },
-  plugins: [nextCookies()], // must be last
+  plugins: [
+    // OAuth2/OIDC provider + MCP: powers the Claude.ai connector. Registers the
+    // authorize/token/register endpoints and protects /api/mcp via withMcpAuth.
+    mcp({
+      loginPage: "/login",
+      oidcConfig: {
+        loginPage: "/login",
+        // Claude's MCP connector self-registers (RFC 7591) and uses PKCE.
+        allowDynamicClientRegistration: true,
+        // Consent screen for clients the user hasn't approved yet.
+        consentPage: "/consent",
+      },
+    }),
+    nextCookies(), // must be last
+  ],
 });

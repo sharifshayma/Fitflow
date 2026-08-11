@@ -4,31 +4,23 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { withMcpAuth } from "better-auth/plugins";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { serializeGoal, serializeFoodLog } from "@/lib/serializers";
 
-// --- Auth: create Supabase client from Bearer token ---
+// --- Tool handlers (Prisma, scoped by the authenticated userId) ---
 
-function createAuthenticatedClient(token: string): SupabaseClient {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } } }
-  );
-}
-
-// --- Tool handlers (accept supabase client) ---
-
-async function listGoals(supabase: SupabaseClient) {
-  const { data, error } = await supabase
-    .from("goals")
-    .select("*")
-    .order("sort_order");
-  if (error) throw new Error(error.message);
-  return data;
+async function listGoals(userId: string) {
+  const goals = await prisma.goal.findMany({
+    where: { userId },
+    orderBy: { sortOrder: "asc" },
+  });
+  return goals.map(serializeGoal);
 }
 
 async function saveGoal(
-  supabase: SupabaseClient,
+  userId: string,
   params: {
     id?: string;
     name?: string;
@@ -39,57 +31,51 @@ async function saveGoal(
   }
 ) {
   if (params.id) {
-    const { id, ...updates } = params;
-    const { data, error } = await supabase
-      .from("goals")
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq("id", id)
-      .select()
-      .single();
-    if (error) throw new Error(error.message);
-    return data;
+    const data: Record<string, unknown> = {};
+    if (params.name !== undefined) data.name = params.name;
+    if (params.unit !== undefined) data.unit = params.unit;
+    if (params.target_value !== undefined) data.targetValue = params.target_value;
+    if (params.goal_type !== undefined) data.goalType = params.goal_type;
+    if (params.direction !== undefined) data.direction = params.direction;
+
+    const res = await prisma.goal.updateMany({ where: { id: params.id, userId }, data });
+    if (res.count === 0) throw new Error("Goal not found");
+    const goal = await prisma.goal.findUnique({ where: { id: params.id } });
+    return serializeGoal(goal!);
   }
 
   if (!params.name || !params.unit || params.target_value === undefined) {
     throw new Error("name, unit, and target_value are required to create a goal");
   }
 
-  const { data: existing } = await supabase
-    .from("goals")
-    .select("sort_order")
-    .order("sort_order", { ascending: false })
-    .limit(1);
-  const nextOrder = existing && existing.length > 0 ? existing[0].sort_order + 1 : 0;
+  const last = await prisma.goal.findFirst({
+    where: { userId },
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true },
+  });
+  const nextOrder = last ? last.sortOrder + 1 : 0;
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const { data, error } = await supabase
-    .from("goals")
-    .insert({
+  const goal = await prisma.goal.create({
+    data: {
+      userId,
       name: params.name,
       unit: params.unit,
-      target_value: params.target_value,
-      goal_type: params.goal_type ?? "food",
+      targetValue: params.target_value,
+      goalType: params.goal_type ?? "food",
       direction: params.direction ?? "max",
-      sort_order: nextOrder,
-      user_id: user!.id,
-    })
-    .select()
-    .single();
-  if (error) throw new Error(error.message);
-  return data;
+      sortOrder: nextOrder,
+    },
+  });
+  return serializeGoal(goal);
 }
 
-async function deleteGoal(supabase: SupabaseClient, id: string) {
-  const { error } = await supabase.from("goals").delete().eq("id", id);
-  if (error) throw new Error(error.message);
+async function deleteGoal(userId: string, id: string) {
+  await prisma.goal.deleteMany({ where: { id, userId } });
   return { success: true };
 }
 
 async function logEntry(
-  supabase: SupabaseClient,
+  userId: string,
   params: {
     type: "food" | "water" | "weight";
     food_name?: string;
@@ -98,11 +84,7 @@ async function logEntry(
     logged_at?: string;
   }
 ) {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const loggedAt = params.logged_at ?? new Date().toISOString();
+  const loggedAt = params.logged_at ? new Date(params.logged_at) : new Date();
   let foodName: string;
   let values: { goal_id: string; value: number }[];
 
@@ -117,47 +99,31 @@ async function logEntry(
     if (params.amount === undefined) {
       throw new Error(`amount is required for ${params.type} entries`);
     }
-    const { data: goals, error: goalsError } = await supabase
-      .from("goals")
-      .select("id")
-      .eq("goal_type", params.type)
-      .limit(1);
-    if (goalsError) throw new Error(goalsError.message);
-    if (!goals || goals.length === 0) {
+    const goal = await prisma.goal.findFirst({
+      where: { userId, goalType: params.type },
+      select: { id: true },
+    });
+    if (!goal) {
       throw new Error(`No ${params.type} goal found. Create a ${params.type} goal first.`);
     }
     foodName = params.type === "water" ? "Water" : "Weight";
-    values = [{ goal_id: goals[0].id, value: params.amount }];
+    values = [{ goal_id: goal.id, value: params.amount }];
   }
 
-  const { data: foodLog, error: logError } = await supabase
-    .from("food_logs")
-    .insert({ food_name: foodName, logged_at: loggedAt, user_id: user!.id })
-    .select()
-    .single();
-  if (logError) throw new Error(logError.message);
-
-  if (values.length > 0) {
-    const valueRows = values.map((v) => ({
-      food_log_id: foodLog.id,
-      goal_id: v.goal_id,
-      value: v.value,
-    }));
-    const { error: valError } = await supabase.from("food_log_values").insert(valueRows);
-    if (valError) throw new Error(valError.message);
-  }
-
-  const { data, error } = await supabase
-    .from("food_logs")
-    .select("*, food_log_values(*)")
-    .eq("id", foodLog.id)
-    .single();
-  if (error) throw new Error(error.message);
-  return data;
+  const created = await prisma.foodLog.create({
+    data: {
+      userId,
+      foodName,
+      loggedAt,
+      values: { create: values.map((v) => ({ goalId: v.goal_id, value: v.value })) },
+    },
+    include: { values: true },
+  });
+  return serializeFoodLog(created);
 }
 
 async function getLogs(
-  supabase: SupabaseClient,
+  userId: string,
   params: {
     view: "daily" | "suggestions" | "dashboard";
     date?: string;
@@ -168,38 +134,34 @@ async function getLogs(
 ) {
   switch (params.view) {
     case "daily":
-      return getDaily(supabase, params.date, params.timezone_offset);
+      return getDaily(userId, params.date, params.timezone_offset);
     case "suggestions":
-      return getSuggestions(supabase, params.timezone_offset);
+      return getSuggestions(userId, params.timezone_offset);
     case "dashboard":
-      return getDashboard(supabase, params.from, params.to, params.timezone_offset);
+      return getDashboard(userId, params.from, params.to, params.timezone_offset);
     default:
       throw new Error(`Unknown view: ${params.view}`);
   }
 }
 
-async function getDaily(supabase: SupabaseClient, date?: string, timezoneOffset?: number) {
-  let query = supabase
-    .from("food_logs")
-    .select("*, food_log_values(*)")
-    .order("logged_at", { ascending: false });
-
+async function getDaily(userId: string, date?: string, timezoneOffset?: number) {
+  const where: { userId: string; loggedAt?: { gte: Date; lt: Date } } = { userId };
   if (date) {
     const offsetMinutes = timezoneOffset ?? 0;
     const startLocal = new Date(`${date}T00:00:00`);
     const startUTC = new Date(startLocal.getTime() + offsetMinutes * 60000);
     const endUTC = new Date(startUTC.getTime() + 24 * 60 * 60 * 1000);
-    query = query
-      .gte("logged_at", startUTC.toISOString())
-      .lt("logged_at", endUTC.toISOString());
+    where.loggedAt = { gte: startUTC, lt: endUTC };
   }
-
-  const { data, error } = await query;
-  if (error) throw new Error(error.message);
-  return data;
+  const logs = await prisma.foodLog.findMany({
+    where,
+    orderBy: { loggedAt: "desc" },
+    include: { values: true },
+  });
+  return logs.map((l) => serializeFoodLog(l));
 }
 
-async function getSuggestions(supabase: SupabaseClient, timezoneOffset?: number) {
+async function getSuggestions(userId: string, timezoneOffset?: number) {
   const offsetMinutes = timezoneOffset ?? 0;
   const now = new Date();
   const localNow = new Date(now.getTime() - offsetMinutes * 60000);
@@ -211,19 +173,15 @@ async function getSuggestions(supabase: SupabaseClient, timezoneOffset?: number)
   const todayStartUTC = new Date(todayLocal.getTime() + offsetMinutes * 60000);
   const thirtyDaysAgo = new Date(todayStartUTC.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-  const { data, error } = await supabase
-    .from("food_logs")
-    .select("*, food_log_values(*)")
-    .lt("logged_at", todayStartUTC.toISOString())
-    .gte("logged_at", thirtyDaysAgo.toISOString())
-    .order("logged_at", { ascending: false })
-    .limit(100);
+  const logs = await prisma.foodLog.findMany({
+    where: { userId, loggedAt: { lt: todayStartUTC, gte: thirtyDaysAgo } },
+    orderBy: { loggedAt: "desc" },
+    take: 100,
+    include: { values: true },
+  });
 
-  if (error) throw new Error(error.message);
-
-  const filtered = (data ?? []).filter((log: { logged_at: string }) => {
-    const logTime = new Date(log.logged_at);
-    const logLocal = new Date(logTime.getTime() - offsetMinutes * 60000);
+  const filtered = logs.filter((log) => {
+    const logLocal = new Date(log.loggedAt.getTime() - offsetMinutes * 60000);
     const logHour = logLocal.getUTCHours();
     const diff = Math.abs(logHour - currentHour);
     const circularDiff = Math.min(diff, 24 - diff);
@@ -231,18 +189,18 @@ async function getSuggestions(supabase: SupabaseClient, timezoneOffset?: number)
   });
 
   const seen = new Set<string>();
-  const unique = filtered.filter((log: { food_name: string }) => {
-    const key = log.food_name.toLowerCase().trim();
+  const unique = filtered.filter((log) => {
+    const key = log.foodName.toLowerCase().trim();
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
 
-  return unique.slice(0, 3);
+  return unique.slice(0, 3).map((l) => serializeFoodLog(l));
 }
 
 async function getDashboard(
-  supabase: SupabaseClient,
+  userId: string,
   from?: string,
   to?: string,
   timezoneOffset?: number
@@ -250,49 +208,39 @@ async function getDashboard(
   if (!from || !to) throw new Error("from and to dates are required for dashboard view");
 
   const offsetMinutes = timezoneOffset ?? 0;
+  const startUTC = new Date(new Date(`${from}T00:00:00`).getTime() + offsetMinutes * 60000);
+  const endUTC = new Date(
+    new Date(`${to}T00:00:00`).getTime() + offsetMinutes * 60000 + 24 * 60 * 60 * 1000
+  );
 
-  const [goalsResult, logsResult] = await Promise.all([
-    supabase.from("goals").select("*").order("sort_order"),
-    supabase
-      .from("food_logs")
-      .select("id, logged_at, food_log_values(goal_id, value)")
-      .gte(
-        "logged_at",
-        new Date(new Date(`${from}T00:00:00`).getTime() + offsetMinutes * 60000).toISOString()
-      )
-      .lt(
-        "logged_at",
-        new Date(
-          new Date(`${to}T00:00:00`).getTime() + offsetMinutes * 60000 + 24 * 60 * 60 * 1000
-        ).toISOString()
-      ),
+  const [goals, foodLogs] = await Promise.all([
+    prisma.goal.findMany({ where: { userId }, orderBy: { sortOrder: "asc" } }),
+    prisma.foodLog.findMany({
+      where: { userId, loggedAt: { gte: startUTC, lt: endUTC } },
+      select: {
+        id: true,
+        loggedAt: true,
+        values: { select: { goalId: true, value: true } },
+      },
+    }),
   ]);
 
-  if (goalsResult.error) throw new Error(goalsResult.error.message);
-  if (logsResult.error) throw new Error(logsResult.error.message);
-
-  const goals = goalsResult.data;
-  const foodLogs = logsResult.data;
-
   const aggregated: Record<string, Record<string, number>> = {};
-  for (const goal of goals ?? []) {
-    aggregated[goal.id] = {};
-  }
-  for (const log of foodLogs ?? []) {
-    const logUTC = new Date(log.logged_at);
-    const logLocal = new Date(logUTC.getTime() - offsetMinutes * 60000);
+  for (const goal of goals) aggregated[goal.id] = {};
+  for (const log of foodLogs) {
+    const logLocal = new Date(log.loggedAt.getTime() - offsetMinutes * 60000);
     const date = logLocal.toISOString().split("T")[0];
-    for (const val of log.food_log_values) {
-      if (!aggregated[val.goal_id]) aggregated[val.goal_id] = {};
-      aggregated[val.goal_id][date] = (aggregated[val.goal_id][date] || 0) + val.value;
+    for (const val of log.values) {
+      if (!aggregated[val.goalId]) aggregated[val.goalId] = {};
+      aggregated[val.goalId][date] = (aggregated[val.goalId][date] || 0) + Number(val.value);
     }
   }
 
-  return { goals, aggregated };
+  return { goals: goals.map(serializeGoal), aggregated };
 }
 
 async function editLog(
-  supabase: SupabaseClient,
+  userId: string,
   params: {
     action: "update" | "delete";
     id: string;
@@ -302,42 +250,46 @@ async function editLog(
   }
 ) {
   if (params.action === "delete") {
-    const { error } = await supabase.from("food_logs").delete().eq("id", params.id);
-    if (error) throw new Error(error.message);
+    await prisma.foodLog.deleteMany({ where: { id: params.id, userId } });
     return { success: true };
   }
 
-  if (params.food_name || params.logged_at) {
-    const updates: Record<string, string> = {};
-    if (params.food_name) updates.food_name = params.food_name;
-    if (params.logged_at) updates.logged_at = params.logged_at;
-    const { error } = await supabase.from("food_logs").update(updates).eq("id", params.id);
-    if (error) throw new Error(error.message);
-  }
+  const existing = await prisma.foodLog.findFirst({
+    where: { id: params.id, userId },
+    select: { id: true },
+  });
+  if (!existing) throw new Error("Log not found");
 
-  if (params.values && Array.isArray(params.values)) {
-    await supabase.from("food_log_values").delete().eq("food_log_id", params.id);
-    if (params.values.length > 0) {
-      const valueRows = params.values.map((v) => ({
-        food_log_id: params.id,
-        goal_id: v.goal_id,
-        value: v.value,
-      }));
-      const { error } = await supabase.from("food_log_values").insert(valueRows);
-      if (error) throw new Error(error.message);
+  const logUpdate: { foodName?: string; loggedAt?: Date } = {};
+  if (params.food_name) logUpdate.foodName = params.food_name;
+  if (params.logged_at) logUpdate.loggedAt = new Date(params.logged_at);
+
+  await prisma.$transaction(async (tx) => {
+    if (Object.keys(logUpdate).length > 0) {
+      await tx.foodLog.update({ where: { id: params.id }, data: logUpdate });
     }
-  }
+    if (params.values && Array.isArray(params.values)) {
+      await tx.foodLogValue.deleteMany({ where: { foodLogId: params.id } });
+      if (params.values.length > 0) {
+        await tx.foodLogValue.createMany({
+          data: params.values.map((v) => ({
+            foodLogId: params.id,
+            goalId: v.goal_id,
+            value: v.value,
+          })),
+        });
+      }
+    }
+  });
 
-  const { data, error } = await supabase
-    .from("food_logs")
-    .select("*, food_log_values(*)")
-    .eq("id", params.id)
-    .single();
-  if (error) throw new Error(error.message);
-  return data;
+  const updated = await prisma.foodLog.findUnique({
+    where: { id: params.id },
+    include: { values: true },
+  });
+  return serializeFoodLog(updated!);
 }
 
-// --- Tool definitions (same schemas as local MCP server) ---
+// --- Tool definitions (unchanged schemas the Claude connector already knows) ---
 
 const TOOL_DEFINITIONS = [
   {
@@ -437,9 +389,9 @@ const TOOL_DEFINITIONS = [
   },
 ];
 
-// --- MCP Server factory ---
+// --- MCP server factory (bound to a userId) ---
 
-function createMcpServer(supabase: SupabaseClient) {
+function createMcpServer(userId: string) {
   const server = new Server(
     { name: "fitflow", version: "1.0.0" },
     { capabilities: { tools: {} } }
@@ -455,22 +407,22 @@ function createMcpServer(supabase: SupabaseClient) {
       let result: unknown;
       switch (name) {
         case "log_entry":
-          result = await logEntry(supabase, args as Parameters<typeof logEntry>[1]);
+          result = await logEntry(userId, args as Parameters<typeof logEntry>[1]);
           break;
         case "get_logs":
-          result = await getLogs(supabase, args as Parameters<typeof getLogs>[1]);
+          result = await getLogs(userId, args as Parameters<typeof getLogs>[1]);
           break;
         case "edit_log":
-          result = await editLog(supabase, args as Parameters<typeof editLog>[1]);
+          result = await editLog(userId, args as Parameters<typeof editLog>[1]);
           break;
         case "list_goals":
-          result = await listGoals(supabase);
+          result = await listGoals(userId);
           break;
         case "save_goal":
-          result = await saveGoal(supabase, args as Parameters<typeof saveGoal>[1]);
+          result = await saveGoal(userId, args as Parameters<typeof saveGoal>[1]);
           break;
         case "delete_goal":
-          result = await deleteGoal(supabase, (args as { id: string }).id);
+          result = await deleteGoal(userId, (args as { id: string }).id);
           break;
         default:
           throw new Error(`Unknown tool: ${name}`);
@@ -485,50 +437,16 @@ function createMcpServer(supabase: SupabaseClient) {
   return server;
 }
 
-// --- Route handlers ---
+// --- Route: OAuth-protected via the better-auth MCP plugin ---
+// withMcpAuth validates the Bearer access token (issued by our OAuth server) and
+// provides the session; session.userId scopes every tool to that user.
 
-export async function POST(request: Request) {
-  const authHeader = request.headers.get("authorization");
-  const token = authHeader?.replace("Bearer ", "");
-  if (!token) {
-    return Response.json(
-      { jsonrpc: "2.0", error: { code: -32000, message: "Missing Authorization header" }, id: null },
-      { status: 401 }
-    );
-  }
-
-  const supabase = createAuthenticatedClient(token);
-  const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
-  if (error || !user) {
-    return Response.json(
-      { jsonrpc: "2.0", error: { code: -32000, message: "Invalid or expired token" }, id: null },
-      { status: 401 }
-    );
-  }
-
-  const server = createMcpServer(supabase);
+export const POST = withMcpAuth(auth, async (request: Request, session) => {
+  const userId = session.userId;
+  const server = createMcpServer(userId);
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined, // stateless
   });
-
   await server.connect(transport);
-  const response = await transport.handleRequest(request);
-  return response;
-}
-
-export async function GET() {
-  return Response.json(
-    { jsonrpc: "2.0", error: { code: -32000, message: "Method not allowed." }, id: null },
-    { status: 405 }
-  );
-}
-
-export async function DELETE() {
-  return Response.json(
-    { jsonrpc: "2.0", error: { code: -32000, message: "Method not allowed." }, id: null },
-    { status: 405 }
-  );
-}
+  return transport.handleRequest(request);
+});
