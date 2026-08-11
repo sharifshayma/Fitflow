@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { createSupabaseBrowser } from "@/lib/supabase-browser";
+import Link from "next/link";
+import { signIn, signUp } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,42 +15,33 @@ export default function LoginPage() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
-
-  const supabase = createSupabaseBrowser();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    setMessage(null);
 
     if (isSignUp) {
-      const { error } = await supabase.auth.signUp({
+      const { error } = await signUp.email({
         email,
         password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
+        name: email.split("@")[0],
       });
       if (error) {
-        setError(error.message);
+        setError(error.message ?? "Could not create account.");
+        setLoading(false);
       } else {
-        setMessage("Check your email for a confirmation link.");
+        window.location.href = "/";
       }
     } else {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { error } = await signIn.email({ email, password });
       if (error) {
-        setError(error.message);
+        setError(error.message ?? "Could not sign in.");
+        setLoading(false);
       } else {
         window.location.href = "/";
       }
     }
-
-    setLoading(false);
   };
 
   return (
@@ -88,18 +80,13 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                minLength={6}
+                minLength={8}
               />
             </div>
 
             {error && (
               <p className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2">
                 {error}
-              </p>
-            )}
-            {message && (
-              <p className="text-sm text-primary bg-primary/10 rounded-lg px-3 py-2">
-                {message}
               </p>
             )}
 
@@ -111,6 +98,17 @@ export default function LoginPage() {
                   : "Sign In"}
             </Button>
 
+            {!isSignUp && (
+              <p className="text-center text-sm">
+                <Link
+                  href="/forgot-password"
+                  className="font-medium text-muted-foreground hover:text-foreground hover:underline"
+                >
+                  Forgot your password?
+                </Link>
+              </p>
+            )}
+
             <p className="text-center text-sm text-muted-foreground">
               {isSignUp ? "Already have an account?" : "Don't have an account?"}{" "}
               <button
@@ -118,7 +116,6 @@ export default function LoginPage() {
                 onClick={() => {
                   setIsSignUp(!isSignUp);
                   setError(null);
-                  setMessage(null);
                 }}
                 className="font-medium text-primary hover:underline"
               >

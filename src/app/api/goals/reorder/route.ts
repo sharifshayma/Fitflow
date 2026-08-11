@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getUserId } from "@/lib/auth-shim";
+import { getUserId } from "@/lib/session";
 import { reorderSchema } from "@/lib/validators";
 
 export async function PUT(request: Request) {

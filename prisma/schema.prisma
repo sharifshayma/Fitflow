@@ -13,17 +13,21 @@ datasource db {
 // User.id is a plain string so we can preserve each Supabase auth.users.id (UUID)
 // on import; new sign-ups get a better-auth–generated id. better-auth owns the
 // auth-specific columns/tables (Session, Account, Verification) added in Phase 3.
+
 model User {
-  id            String    @id
-  email         String    @unique
+  id            String   @id
+  email         String   @unique
   name          String?
-  emailVerified Boolean   @default(false) @map("email_verified")
+  emailVerified Boolean  @default(false) @map("email_verified")
   image         String?
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   goals    Goal[]
   foodLogs FoodLog[]
+
+  sessions Session[]
+  accounts Account[]
 
   @@map("users")
 }
@@ -73,4 +77,52 @@ model FoodLogValue {
   @@unique([foodLogId, goalId])
   @@index([goalId])
   @@map("food_log_values")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
 }

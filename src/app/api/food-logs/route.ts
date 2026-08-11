@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getUserId } from "@/lib/auth-shim";
+import { getUserId } from "@/lib/session";
 import { foodLogSchema } from "@/lib/validators";
 import { serializeFoodLog } from "@/lib/serializers";
 
