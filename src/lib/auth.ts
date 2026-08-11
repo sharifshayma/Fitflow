@@ -15,14 +15,24 @@ async function sendResetEmail(email: string, url: string) {
     return;
   }
 
-  const { Resend } = await import("resend");
-  const resend = new Resend(apiKey);
-  await resend.emails.send({
-    from,
-    to: email,
-    subject: "Reset your FitFlow password",
-    text: `Reset your FitFlow password using this link:\n\n${url}\n\nIf you didn't request this, you can ignore this email.`,
-  });
+  // Try Resend; if it can't send (e.g. the sender domain isn't verified yet),
+  // fall back to logging the link so the reset flow never hard-fails.
+  try {
+    const { Resend } = await import("resend");
+    const resend = new Resend(apiKey);
+    const { error } = await resend.emails.send({
+      from,
+      to: email,
+      subject: "Reset your FitFlow password",
+      text: `Reset your FitFlow password using this link:\n\n${url}\n\nIf you didn't request this, you can ignore this email.`,
+    });
+    if (error) throw new Error(JSON.stringify(error));
+  } catch (err) {
+    console.log(
+      `[auth] Resend send failed (${err instanceof Error ? err.message : String(err)}); ` +
+        `password reset link for ${email}: ${url}`
+    );
+  }
 }
 
 export const auth = betterAuth({
