@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { createSupabaseServer } from "@/lib/supabase-server";
+import { prisma } from "@/lib/prisma";
+import { getUserId } from "@/lib/auth-shim";
 import { reorderSchema } from "@/lib/validators";
 
 export async function PUT(request: Request) {
-  const supabase = await createSupabaseServer();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  const userId = await getUserId(request);
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const body = await request.json();
@@ -16,18 +16,12 @@ export async function PUT(request: Request) {
 
   const { orderedIds } = parsed.data;
 
-  const updates = orderedIds.map((id, index) =>
-    supabase
-      .from("goals")
-      .update({ sort_order: index, updated_at: new Date().toISOString() })
-      .eq("id", id)
+  // Apply all sort_order updates atomically, each scoped to the owner.
+  await prisma.$transaction(
+    orderedIds.map((id, index) =>
+      prisma.goal.updateMany({ where: { id, userId }, data: { sortOrder: index } })
+    )
   );
-
-  const results = await Promise.all(updates);
-  const failed = results.find((r) => r.error);
-  if (failed?.error) {
-    return NextResponse.json({ error: failed.error.message }, { status: 500 });
-  }
 
   return NextResponse.json({ success: true });
 }

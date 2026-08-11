@@ -1,29 +1,28 @@
 import { NextResponse } from "next/server";
-import { createSupabaseServer } from "@/lib/supabase-server";
+import { prisma } from "@/lib/prisma";
+import { getUserId } from "@/lib/auth-shim";
 import { goalSchema } from "@/lib/validators";
+import { serializeGoal } from "@/lib/serializers";
 
-export async function GET() {
-  const supabase = await createSupabaseServer();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+export async function GET(request: Request) {
+  const userId = await getUserId(request);
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data, error } = await supabase
-    .from("goals")
-    .select("*")
-    .order("sort_order");
+  const goals = await prisma.goal.findMany({
+    where: { userId },
+    orderBy: { sortOrder: "asc" },
+  });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data, {
+  return NextResponse.json(goals.map(serializeGoal), {
     headers: { "Cache-Control": "private, max-age=60, stale-while-revalidate=300" },
   });
 }
 
 export async function POST(request: Request) {
-  const supabase = await createSupabaseServer();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  const userId = await getUserId(request);
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -33,21 +32,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  // Get next sort_order
-  const { data: existing } = await supabase
-    .from("goals")
-    .select("sort_order")
-    .order("sort_order", { ascending: false })
-    .limit(1);
+  // Next sort_order = current max + 1 (0 if none), scoped to this user.
+  const last = await prisma.goal.findFirst({
+    where: { userId },
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true },
+  });
+  const nextOrder = last ? last.sortOrder + 1 : 0;
 
-  const nextOrder = existing && existing.length > 0 ? existing[0].sort_order + 1 : 0;
+  const goal = await prisma.goal.create({
+    data: {
+      userId,
+      name: parsed.data.name,
+      unit: parsed.data.unit,
+      targetValue: parsed.data.target_value,
+      goalType: parsed.data.goal_type,
+      direction: parsed.data.direction,
+      sortOrder: nextOrder,
+    },
+  });
 
-  const { data, error } = await supabase
-    .from("goals")
-    .insert({ ...parsed.data, sort_order: nextOrder, user_id: session.user.id })
-    .select()
-    .single();
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data, { status: 201 });
+  return NextResponse.json(serializeGoal(goal), { status: 201 });
 }

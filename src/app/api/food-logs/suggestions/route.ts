@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
-import { createSupabaseServer } from "@/lib/supabase-server";
+import { prisma } from "@/lib/prisma";
+import { getUserId } from "@/lib/auth-shim";
+import { serializeFoodLog } from "@/lib/serializers";
 
 export async function GET(request: Request) {
-  const supabase = await createSupabaseServer();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  if (!session) {
+  const userId = await getUserId(request);
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -28,22 +27,16 @@ export async function GET(request: Request) {
   // 30 days ago
   const thirtyDaysAgo = new Date(todayStartUTC.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-  const { data, error } = await supabase
-    .from("food_logs")
-    .select("*, food_log_values(*)")
-    .lt("logged_at", todayStartUTC.toISOString())
-    .gte("logged_at", thirtyDaysAgo.toISOString())
-    .order("logged_at", { ascending: false })
-    .limit(100);
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+  const logs = await prisma.foodLog.findMany({
+    where: { userId, loggedAt: { lt: todayStartUTC, gte: thirtyDaysAgo } },
+    orderBy: { loggedAt: "desc" },
+    take: 100,
+    include: { values: true },
+  });
 
   // Filter by time-of-day window: ±3 hours from current local hour
-  const filtered = (data ?? []).filter((log) => {
-    const logTime = new Date(log.logged_at);
-    const logLocal = new Date(logTime.getTime() - offsetMinutes * 60000);
+  const filtered = logs.filter((log) => {
+    const logLocal = new Date(log.loggedAt.getTime() - offsetMinutes * 60000);
     const logHour = logLocal.getUTCHours();
 
     // Circular distance between hours (handles midnight wrapping)
@@ -55,14 +48,14 @@ export async function GET(request: Request) {
   // Deduplicate by food_name (case-insensitive), keep most recent
   const seen = new Set<string>();
   const unique = filtered.filter((log) => {
-    const key = log.food_name.toLowerCase().trim();
+    const key = log.foodName.toLowerCase().trim();
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
 
   // Return top 3
-  return NextResponse.json(unique.slice(0, 3), {
+  return NextResponse.json(unique.slice(0, 3).map((l) => serializeFoodLog(l)), {
     headers: { "Cache-Control": "private, max-age=120, stale-while-revalidate=300" },
   });
 }

@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
-import { createSupabaseServer } from "@/lib/supabase-server";
+import { prisma } from "@/lib/prisma";
+import { getUserId } from "@/lib/auth-shim";
 import { goalSchema } from "@/lib/validators";
+import { serializeGoal } from "@/lib/serializers";
 
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = await createSupabaseServer();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  const userId = await getUserId(request);
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const { id } = await params;
@@ -18,29 +19,35 @@ export async function PUT(
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { data, error } = await supabase
-    .from("goals")
-    .update({ ...parsed.data, updated_at: new Date().toISOString() })
-    .eq("id", id)
-    .select()
-    .single();
+  const p = parsed.data;
+  const data: Record<string, unknown> = {};
+  if (p.name !== undefined) data.name = p.name;
+  if (p.unit !== undefined) data.unit = p.unit;
+  if (p.target_value !== undefined) data.targetValue = p.target_value;
+  if (p.goal_type !== undefined) data.goalType = p.goal_type;
+  if (p.direction !== undefined) data.direction = p.direction;
+  // updated_at is maintained automatically (@updatedAt).
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data);
+  // Scope the update to the owner; updateMany lets us filter by userId.
+  const result = await prisma.goal.updateMany({ where: { id, userId }, data });
+  if (result.count === 0) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const goal = await prisma.goal.findUnique({ where: { id } });
+  return NextResponse.json(serializeGoal(goal!));
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = await createSupabaseServer();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  const userId = await getUserId(request);
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const { id } = await params;
-  const { error } = await supabase.from("goals").delete().eq("id", id);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  await prisma.goal.deleteMany({ where: { id, userId } });
   return NextResponse.json({ success: true });
 }

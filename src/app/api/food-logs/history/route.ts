@@ -1,35 +1,27 @@
 import { NextResponse } from "next/server";
-import { createSupabaseServer } from "@/lib/supabase-server";
+import { prisma } from "@/lib/prisma";
+import { getUserId } from "@/lib/auth-shim";
 
-export async function GET() {
-  const supabase = await createSupabaseServer();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  if (!session) {
+export async function GET(request: Request) {
+  const userId = await getUserId(request);
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   // Look back up to a year, capped at 1000 rows for safety.
   const oneYearAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
 
-  const { data, error } = await supabase
-    .from("food_logs")
-    .select("id, food_name, logged_at, food_log_values(goal_id, value)")
-    .gte("logged_at", oneYearAgo.toISOString())
-    .order("logged_at", { ascending: false })
-    .limit(1000);
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  type Row = {
-    id: string;
-    food_name: string;
-    logged_at: string;
-    food_log_values: { goal_id: string; value: number }[];
-  };
+  const rows = await prisma.foodLog.findMany({
+    where: { userId, loggedAt: { gte: oneYearAgo } },
+    orderBy: { loggedAt: "desc" },
+    take: 1000,
+    select: {
+      id: true,
+      foodName: true,
+      loggedAt: true,
+      values: { select: { goalId: true, value: true } },
+    },
+  });
 
   type HistoryItem = {
     food_name: string;
@@ -40,8 +32,8 @@ export async function GET() {
 
   const grouped = new Map<string, HistoryItem>();
 
-  for (const row of (data ?? []) as Row[]) {
-    const trimmed = row.food_name.trim();
+  for (const row of rows) {
+    const trimmed = row.foodName.trim();
     if (!trimmed) continue;
     const key = trimmed.toLowerCase();
     // Skip the Water/Weight pseudo-entries — those have their own tabs.
@@ -55,11 +47,8 @@ export async function GET() {
       grouped.set(key, {
         food_name: trimmed,
         count: 1,
-        last_logged_at: row.logged_at,
-        values: row.food_log_values.map((v) => ({
-          goal_id: v.goal_id,
-          value: v.value,
-        })),
+        last_logged_at: row.loggedAt.toISOString(),
+        values: row.values.map((v) => ({ goal_id: v.goalId, value: Number(v.value) })),
       });
     }
   }

@@ -1,81 +1,62 @@
 import { NextResponse } from "next/server";
-import { createSupabaseServer } from "@/lib/supabase-server";
+import { prisma } from "@/lib/prisma";
+import { getUserId } from "@/lib/auth-shim";
 import { foodLogSchema } from "@/lib/validators";
+import { serializeFoodLog } from "@/lib/serializers";
 
 export async function GET(request: Request) {
-  const supabase = await createSupabaseServer();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  const userId = await getUserId(request);
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const { searchParams } = new URL(request.url);
   const date = searchParams.get("date");
   const tz = searchParams.get("tz");
 
-  let query = supabase
-    .from("food_logs")
-    .select("*, food_log_values(*)")
-    .order("logged_at", { ascending: false });
-
+  const where: { userId: string; loggedAt?: { gte: Date; lt: Date } } = { userId };
   if (date) {
     const offsetMinutes = tz ? parseInt(tz, 10) : 0;
     const startLocal = new Date(`${date}T00:00:00`);
     const startUTC = new Date(startLocal.getTime() + offsetMinutes * 60000);
     const endUTC = new Date(startUTC.getTime() + 24 * 60 * 60 * 1000);
-    query = query
-      .gte("logged_at", startUTC.toISOString())
-      .lt("logged_at", endUTC.toISOString());
+    where.loggedAt = { gte: startUTC, lt: endUTC };
   }
 
-  const { data, error } = await query;
+  const logs = await prisma.foodLog.findMany({
+    where,
+    orderBy: { loggedAt: "desc" },
+    include: { values: true },
+  });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data);
+  return NextResponse.json(logs.map((l) => serializeFoodLog(l)));
 }
 
 export async function POST(request: Request) {
-  const supabase = await createSupabaseServer();
+  const userId = await getUserId(request);
+  if (!userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await request.json();
   const parsed = foodLogSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const { food_name, logged_at, values } = parsed.data;
 
-  const { data: foodLog, error: logError } = await supabase
-    .from("food_logs")
-    .insert({ food_name, logged_at, user_id: session.user.id })
-    .select()
-    .single();
+  const created = await prisma.foodLog.create({
+    data: {
+      userId,
+      foodName: food_name,
+      loggedAt: new Date(logged_at),
+      values:
+        values.length > 0
+          ? { create: values.map((v) => ({ goalId: v.goal_id, value: v.value })) }
+          : undefined,
+    },
+    include: { values: true },
+  });
 
-  if (logError) return NextResponse.json({ error: logError.message }, { status: 500 });
-
-  if (values.length > 0) {
-    const valueRows = values.map((v) => ({
-      food_log_id: foodLog.id,
-      goal_id: v.goal_id,
-      value: v.value,
-    }));
-
-    const { error: valError } = await supabase
-      .from("food_log_values")
-      .insert(valueRows);
-
-    if (valError) return NextResponse.json({ error: valError.message }, { status: 500 });
-  }
-
-  const { data, error } = await supabase
-    .from("food_logs")
-    .select("*, food_log_values(*)")
-    .eq("id", foodLog.id)
-    .single();
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data, { status: 201 });
+  return NextResponse.json(serializeFoodLog(created), { status: 201 });
 }

@@ -1,19 +1,20 @@
 import { NextResponse } from "next/server";
-import { createSupabaseServer } from "@/lib/supabase-server";
+import { prisma } from "@/lib/prisma";
+import { getUserId } from "@/lib/auth-shim";
+import { serializeFoodLog } from "@/lib/serializers";
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = await createSupabaseServer();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  const userId = await getUserId(request);
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const { id } = await params;
-  const { error } = await supabase.from("food_logs").delete().eq("id", id);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  // food_log_values cascade-delete via the foreign key.
+  await prisma.foodLog.deleteMany({ where: { id, userId } });
   return NextResponse.json({ success: true });
 }
 
@@ -21,48 +22,49 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const supabase = await createSupabaseServer();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  const userId = await getUserId(request);
+  if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const { id } = await params;
   const body = await request.json();
-
   const { food_name, logged_at, values } = body;
 
-  // Update food log
-  if (food_name || logged_at) {
-    const updates: Record<string, string> = {};
-    if (food_name) updates.food_name = food_name;
-    if (logged_at) updates.logged_at = logged_at;
-
-    const { error } = await supabase.from("food_logs").update(updates).eq("id", id);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  // Confirm ownership before mutating.
+  const existing = await prisma.foodLog.findFirst({
+    where: { id, userId },
+    select: { id: true },
+  });
+  if (!existing) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Update values if provided
-  if (values && Array.isArray(values)) {
-    // Delete existing values and re-insert
-    await supabase.from("food_log_values").delete().eq("food_log_id", id);
+  const logUpdate: { foodName?: string; loggedAt?: Date } = {};
+  if (food_name) logUpdate.foodName = food_name;
+  if (logged_at) logUpdate.loggedAt = new Date(logged_at);
 
-    if (values.length > 0) {
-      const valueRows = values.map((v: { goal_id: string; value: number }) => ({
-        food_log_id: id,
-        goal_id: v.goal_id,
-        value: v.value,
-      }));
-      const { error } = await supabase.from("food_log_values").insert(valueRows);
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  await prisma.$transaction(async (tx) => {
+    if (Object.keys(logUpdate).length > 0) {
+      await tx.foodLog.update({ where: { id }, data: logUpdate });
     }
-  }
+    // Replace the value set when provided (delete + re-insert).
+    if (values && Array.isArray(values)) {
+      await tx.foodLogValue.deleteMany({ where: { foodLogId: id } });
+      if (values.length > 0) {
+        await tx.foodLogValue.createMany({
+          data: values.map((v: { goal_id: string; value: number }) => ({
+            foodLogId: id,
+            goalId: v.goal_id,
+            value: v.value,
+          })),
+        });
+      }
+    }
+  });
 
-  const { data, error } = await supabase
-    .from("food_logs")
-    .select("*, food_log_values(*)")
-    .eq("id", id)
-    .single();
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data);
+  const updated = await prisma.foodLog.findUnique({
+    where: { id },
+    include: { values: true },
+  });
+  return NextResponse.json(serializeFoodLog(updated!));
 }
