@@ -1,0 +1,7 @@
+{
+  "app": {
+    "name": "fitflow",
+    "framework": "nextjs",
+    "httpPort": 3000
+  }
+}

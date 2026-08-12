@@ -2,12 +2,15 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getUserId } from "@/lib/session";
 import { serializeGoal } from "@/lib/serializers";
+import { refreshDemoIfStale } from "@/lib/demo-seed";
 
 export async function GET(request: Request) {
   const userId = await getUserId(request);
   if (!userId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  // Keep the public demo populated; no-op for every other account.
+  await refreshDemoIfStale(userId);
   const { searchParams } = new URL(request.url);
   const from = searchParams.get("from");
   const to = searchParams.get("to");
