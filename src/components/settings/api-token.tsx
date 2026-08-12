@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Copy, Check } from "lucide-react";
 
-const MCP_URL = "https://fitflow.shayma.me/api/mcp";
+const MCP_URL = "https://fitflow.thatsmy.app/api/mcp";
 
 export function ApiToken() {
   const [copied, setCopied] = useState(false);
@@ -31,7 +31,7 @@ export function ApiToken() {
             <li>
               On Claude.ai, go to{" "}
               <span className="font-medium text-foreground">
-                Customize &rarr; Connectors
+                Settings &rarr; Connectors
               </span>
             </li>
             <li>

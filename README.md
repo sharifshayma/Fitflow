@@ -72,8 +72,9 @@ npm run dev               # http://localhost:3000
 ## Connecting Claude
 
 1. Deploy the app (or expose it publicly) and note its URL.
-2. In Claude → **Settings → Connectors → Add custom connector**, use
-   `https://<your-app>/api/mcp`.
+2. In Claude → **Settings → Connectors → Add custom connector**, use your app's MCP
+   endpoint — `https://<your-app>/api/mcp` (the live demo is
+   `https://fitflow.thatsmy.app/api/mcp`).
 3. Claude registers itself, you sign in and approve the consent screen, and the six
    tools (`list_goals`, `save_goal`, `delete_goal`, `log_entry`, `get_logs`,
    `edit_log`) become available in chat.
