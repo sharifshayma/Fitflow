@@ -6,6 +6,19 @@ in a tap, and watch your progress on a dashboard — or just tell Claude *"log a
 chicken salad for lunch"* and *"how's my protein this week?"* and it does the rest
 through a built-in **MCP server**.
 
+## Live demo
+
+Try it without installing anything:
+
+**→ [Open the live demo](https://fitflow.thatsmy.app)**
+
+- **Email:** `demo@fitflow.thatsmy.app`
+- **Password:** `fitflowdemo2026`
+
+The demo account is preloaded with ~2 weeks of goals and food logs, so the dashboard
+and history are populated. It's a shared sandbox — feel free to add or edit entries;
+the data may be reset periodically.
+
 ## What it does
 
 - **Custom goals** — create any goal with a type (`food` / `water` / `weight`), a
