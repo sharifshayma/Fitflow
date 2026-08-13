@@ -19,6 +19,45 @@ The demo account is preloaded with ~2 weeks of goals and food logs, so the dashb
 and history are populated. It's a shared sandbox — feel free to add or edit entries;
 the data may be reset periodically.
 
+## Screenshots
+
+**The app**
+
+<table>
+  <tr>
+    <td align="center"><b>Dashboard</b></td>
+    <td align="center"><b>Day log</b></td>
+    <td align="center"><b>Goals</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/dashboard.jpg" width="240" alt="Weekly dashboard with per-goal progress"></td>
+    <td><img src="docs/screenshots/food-log.jpg" width="240" alt="A day's food log with totals"></td>
+    <td><img src="docs/screenshots/goals.jpg" width="240" alt="Custom health goals"></td>
+  </tr>
+  <tr>
+    <td align="center">Per-goal progress across the week.</td>
+    <td align="center">Everything logged for a day, with totals.</td>
+    <td align="center">Custom goals — calories, protein, water, weight…</td>
+  </tr>
+</table>
+
+**Drive it from Claude** (via the built-in MCP connector)
+
+<table>
+  <tr>
+    <td align="center"><b>Ask about your day</b></td>
+    <td align="center"><b>Log a meal from a photo</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/claude-ask.jpg" width="240" alt="Ask Claude how many calories are left"></td>
+    <td><img src="docs/screenshots/claude-log.jpg" width="240" alt="Log a meal from a photo via Claude"></td>
+  </tr>
+  <tr>
+    <td align="center">"How many calories do I have left today?"</td>
+    <td align="center">Send a photo — Claude logs it through the MCP endpoint.</td>
+  </tr>
+</table>
+
 ## What it does
 
 - **Custom goals** — create any goal with a type (`food` / `water` / `weight`), a
