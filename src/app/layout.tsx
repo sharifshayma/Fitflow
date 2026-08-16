@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { Toaster } from "@/components/ui/sonner";
@@ -45,6 +46,11 @@ export default function RootLayout({
         <AppShell>{children}</AppShell>
         <Analytics />
         <Toaster />
+              <Script
+          src="https://umami-iota-six-97.vercel.app/script.js"
+          data-website-id="c8d5300c-3b9a-4c69-9ca5-48d3e95bf4a4"
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );
