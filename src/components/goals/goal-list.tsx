@@ -118,7 +118,7 @@ export function GoalList() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Your Goals</h2>
-        <Button onClick={openAdd}>+ Add Goal</Button>
+        <Button onClick={openAdd} data-umami-event="add-goal">+ Add Goal</Button>
       </div>
 
       {goals.length === 0 ? (

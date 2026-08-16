@@ -101,7 +101,7 @@ export function GoalForm({ open, onOpenChange, onSubmit, defaultValues }: GoalFo
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="submit" disabled={isSubmitting} data-umami-event="save-goal">
               {defaultValues ? "Save Changes" : "Add Goal"}
             </Button>
           </div>

@@ -55,6 +55,7 @@ export function GoalItem({ goal, onEdit, onDelete }: GoalItemProps) {
           size="icon"
           className="h-8 w-8 text-muted-foreground hover:text-foreground"
           onClick={() => onEdit(goal)}
+          data-umami-event="edit-goal"
         >
           <Pencil className="h-3.5 w-3.5" />
         </Button>
@@ -63,6 +64,7 @@ export function GoalItem({ goal, onEdit, onDelete }: GoalItemProps) {
           size="icon"
           className="h-8 w-8 text-muted-foreground hover:text-destructive"
           onClick={() => onDelete(goal.id)}
+          data-umami-event="delete-goal"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </Button>

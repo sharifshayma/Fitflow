@@ -280,7 +280,7 @@ function FoodFormContent({
         <Button type="button" variant="outline" onClick={onClose}>
           Cancel
         </Button>
-        <Button type="submit">{isEditing ? "Save" : "Log Food"}</Button>
+        <Button type="submit" data-umami-event="log-food">{isEditing ? "Save" : "Log Food"}</Button>
       </div>
     </form>
   );
@@ -362,7 +362,7 @@ function WaterFormContent({
       </div>
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-        <Button type="submit">{isEditing ? "Save" : "Log Water"}</Button>
+        <Button type="submit" data-umami-event="log-water">{isEditing ? "Save" : "Log Water"}</Button>
       </div>
     </form>
   );
@@ -444,7 +444,7 @@ function WeightFormContent({
       </div>
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-        <Button type="submit">{isEditing ? "Save" : "Log Weight"}</Button>
+        <Button type="submit" data-umami-event="log-weight">{isEditing ? "Save" : "Log Weight"}</Button>
       </div>
     </form>
   );

@@ -25,6 +25,7 @@ export function FoodSuggestions({ onSelect }: FoodSuggestionsProps) {
             key={suggestion.id}
             type="button"
             onClick={() => onSelect(suggestion)}
+            data-umami-event="pick-suggestion"
             className="inline-flex items-center gap-1 rounded-full bg-secondary px-3 py-1.5 text-sm font-medium text-secondary-foreground hover:bg-secondary/80 transition-colors"
           >
             {suggestion.food_name}

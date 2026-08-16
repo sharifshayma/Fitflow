@@ -45,7 +45,7 @@ export function ApiToken() {
                 <code className="flex-1 rounded bg-muted px-3 py-2 text-xs font-mono">
                   {MCP_URL}
                 </code>
-                <Button variant="ghost" size="icon" onClick={copyUrl} className="shrink-0">
+                <Button variant="ghost" size="icon" onClick={copyUrl} data-umami-event="copy-mcp-url" className="shrink-0">
                   {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
                 </Button>
               </div>
