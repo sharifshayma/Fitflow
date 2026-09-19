@@ -16,6 +16,25 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Where to send the user after a successful sign-in/sign-up.
+  //
+  // The OAuth/MCP authorize endpoint (better-auth's MCP plugin) redirects an
+  // unauthenticated user to `/login?<authorize query>` while it parks the
+  // request in a cookie. Once signed in we must return to that authorize
+  // endpoint so the flow can continue to the consent screen and back to the
+  // client's callback (e.g. Claude's connector). If we instead land on the
+  // dashboard, the authorization never completes and the connector reports
+  // "MCP authorization callback failed". When there are no OAuth params this is
+  // an ordinary login, so we go to the dashboard.
+  const postLoginDestination = () => {
+    const search = window.location.search;
+    const params = new URLSearchParams(search);
+    if (params.has("client_id")) {
+      return `/api/auth/mcp/authorize${search}`;
+    }
+    return "/";
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -31,7 +50,7 @@ export default function LoginPage() {
         setError(error.message ?? "Could not create account.");
         setLoading(false);
       } else {
-        window.location.href = "/";
+        window.location.href = postLoginDestination();
       }
     } else {
       const { error } = await signIn.email({ email, password });
@@ -39,7 +58,7 @@ export default function LoginPage() {
         setError(error.message ?? "Could not sign in.");
         setLoading(false);
       } else {
-        window.location.href = "/";
+        window.location.href = postLoginDestination();
       }
     }
   };
