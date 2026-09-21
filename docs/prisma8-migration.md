@@ -26,8 +26,12 @@ rewritten, so behavior is unchanged. What changed:
   (see step 1 below).
 - **`.npmrc`** sets `legacy-peer-deps=true` — the Prisma 8 RC packages otherwise
   break `npm install` with `Cannot read properties of null (reading 'edgesOut')`.
-- **`.github/workflows/prisma-deploy.yml`** — the GA Compute deploy-on-push
-  workflow. It stays green/skipped until you run `git connect` (step 3).
+Deploys use GA Compute's **native framework detection** (first-class Next.js):
+once the repo is connected with `prisma git connect`, pushing a branch builds and
+deploys it — no GitHub Actions workflow and no Composer `module.ts` needed. (An
+earlier revision added a `prisma/cloud-deploy-action` workflow; that is the
+*Composer* deploy path, which this framework-detected app does not use, so it was
+removed.)
 
 Verified locally: `npm install`, `prisma7 generate`, `prisma contract emit`, and
 `next build` all pass.
@@ -83,17 +87,22 @@ npx prisma@latest auth login
 npx prisma@latest git connect https://github.com/sharifshayma/Fitflow
 ```
 
-`git connect` installs the Prisma GitHub App and lets the workflow authenticate
-via OIDC (no repo secrets). Confirm `BETTER_AUTH_URL=https://fitflow.thatsmy.app`
-and `DATABASE_URL` are set in the Compute **production** environment
-(Console → project → Environment), then push `main`. The `prisma-deploy` workflow
-builds (`npm run build`) and deploys.
+`git connect` installs the Prisma GitHub App (OIDC, no repo secrets). GA Compute
+then **detects the Next.js framework and builds/deploys on every push** — no
+workflow file needed. Before pushing, set the production environment variables:
 
-> If GA Compute expects a Prisma **Composer** app (`module.ts`) rather than the
-> git-integration build, follow
-> <https://www.prisma.io/docs/compute/getting-started> to add it — that part
-> needs your project/database IDs. The Console's "connect" flow can also open a PR
-> that adds the right workflow for your setup.
+```bash
+npx prisma@latest project env add DATABASE_URL=postgres://... --role production
+npx prisma@latest project env add BETTER_AUTH_URL=https://fitflow.thatsmy.app --role production
+```
+
+(or set them in Console → project → Environment). Then push `main`; watch and
+open the result:
+
+```bash
+npx prisma@latest service list
+npx prisma@latest service logs <service> --follow
+```
 
 ### 4. Verify the OAuth fix is live
 
