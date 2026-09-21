@@ -1,0 +1,175 @@
+// use prisma-8
+// Contract inferred from the live database schema. Edit as needed, then run `prisma contract emit`.
+
+model Users {
+  id                String             @id(map: "users_pkey")
+  email             String
+  name              String?
+  emailVerified     Boolean            @default(false) @map("email_verified")
+  image             String?
+  createdAt         Timestamp(3)       @default(now()) @map("created_at")
+  updatedAt         Timestamp(3)       @map("updated_at")
+  accounts          Account[]
+  foodLogs          FoodLogs[]
+  goals             Goals[]
+  oauthAccessTokens OauthAccessToken[]
+  oauthApplications OauthApplication[]
+  oauthConsents     OauthConsent[]
+  sessions          Session[]
+
+  @@index([email], map: "users_email_key", unique: true)
+  @@map("users")
+}
+
+model Account {
+  id                    String        @id(map: "account_pkey")
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  Timestamp(3)?
+  refreshTokenExpiresAt Timestamp(3)?
+  scope                 String?
+  password              String?
+  createdAt             Timestamp(3)  @default(now())
+  updatedAt             Timestamp(3)
+  user                  Users         @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "account_userId_fkey")
+
+  @@index([userId], map: "account_userId_idx")
+  @@map("account")
+}
+
+model FoodLogs {
+  id            String          @id(map: "food_logs_pkey")
+  userId        String          @map("user_id")
+  foodName      String          @map("food_name")
+  loggedAt      Timestamp(3)    @map("logged_at")
+  createdAt     Timestamp(3)    @default(now()) @map("created_at")
+  foodLogValues FoodLogValues[]
+  user          Users           @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "food_logs_user_id_fkey")
+
+  @@index([loggedAt], map: "food_logs_logged_at_idx")
+  @@index([userId], map: "food_logs_user_id_idx")
+  @@map("food_logs")
+}
+
+model Goals {
+  id            String          @id(map: "goals_pkey")
+  userId        String          @map("user_id")
+  name          String
+  unit          String
+  targetValue   Numeric(12, 4)  @map("target_value")
+  goalType      String          @default("food") @map("goal_type")
+  direction     String          @default("max")
+  sortOrder     Int             @default(0) @map("sort_order")
+  createdAt     Timestamp(3)    @default(now()) @map("created_at")
+  updatedAt     Timestamp(3)    @map("updated_at")
+  foodLogValues FoodLogValues[]
+  user          Users           @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "goals_user_id_fkey")
+
+  @@index([userId], map: "goals_user_id_idx")
+  @@map("goals")
+}
+
+model FoodLogValues {
+  id        String         @id(map: "food_log_values_pkey")
+  foodLogId String         @map("food_log_id")
+  goalId    String         @map("goal_id")
+  value     Numeric(12, 4)
+  foodLog   FoodLogs       @relation(fields: [foodLogId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "food_log_values_food_log_id_fkey", index: false)
+  goal      Goals          @relation(fields: [goalId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "food_log_values_goal_id_fkey")
+
+  @@index([foodLogId, goalId], map: "food_log_values_food_log_id_goal_id_key", unique: true)
+  @@index([goalId], map: "food_log_values_goal_id_idx")
+  @@map("food_log_values")
+}
+
+model OauthApplication {
+  id                String             @id(map: "oauthApplication_pkey")
+  name              String?
+  icon              String?
+  metadata          String?
+  clientId          String?
+  clientSecret      String?
+  redirectUrls      String?
+  _type             String?            @map("type")
+  disabled          Boolean?           @default(false)
+  userId            String?
+  createdAt         Timestamp(3)?
+  updatedAt         Timestamp(3)?
+  oauthAccessTokens OauthAccessToken[]
+  oauthConsents     OauthConsent[]
+  user              Users?             @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "oauthApplication_userId_fkey")
+
+  @@index([clientId], map: "oauthApplication_clientId_key", unique: true)
+  @@index([userId], map: "oauthApplication_userId_idx")
+  @@map("oauthApplication")
+}
+
+model OauthAccessToken {
+  id                    String            @id(map: "oauthAccessToken_pkey")
+  accessToken           String?
+  refreshToken          String?
+  accessTokenExpiresAt  Timestamp(3)?
+  refreshTokenExpiresAt Timestamp(3)?
+  clientId              String?
+  userId                String?
+  scopes                String?
+  createdAt             Timestamp(3)?
+  updatedAt             Timestamp(3)?
+  client                OauthApplication? @relation(fields: [clientId], references: [clientId], onDelete: Cascade, onUpdate: Cascade, map: "oauthAccessToken_clientId_fkey")
+  user                  Users?            @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "oauthAccessToken_userId_fkey")
+
+  @@index([accessToken], map: "oauthAccessToken_accessToken_key", unique: true)
+  @@index([clientId], map: "oauthAccessToken_clientId_idx")
+  @@index([refreshToken], map: "oauthAccessToken_refreshToken_key", unique: true)
+  @@index([userId], map: "oauthAccessToken_userId_idx")
+  @@map("oauthAccessToken")
+}
+
+model OauthConsent {
+  id           String            @id(map: "oauthConsent_pkey")
+  clientId     String?
+  userId       String?
+  scopes       String?
+  createdAt    Timestamp(3)?
+  updatedAt    Timestamp(3)?
+  consentGiven Boolean?
+  client       OauthApplication? @relation(fields: [clientId], references: [clientId], onDelete: Cascade, onUpdate: Cascade, map: "oauthConsent_clientId_fkey")
+  user         Users?            @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "oauthConsent_userId_fkey")
+
+  @@index([clientId], map: "oauthConsent_clientId_idx")
+  @@index([userId], map: "oauthConsent_userId_idx")
+  @@map("oauthConsent")
+}
+
+
+model Session {
+  id        String       @id(map: "session_pkey")
+  expiresAt Timestamp(3)
+  token     String
+  createdAt Timestamp(3) @default(now())
+  updatedAt Timestamp(3)
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      Users        @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "session_userId_fkey")
+
+  @@index([token], map: "session_token_key", unique: true)
+  @@index([userId], map: "session_userId_idx")
+  @@map("session")
+}
+
+model Verification {
+  id         String       @id(map: "verification_pkey")
+  identifier String
+  value      String
+  expiresAt  Timestamp(3)
+  createdAt  Timestamp(3) @default(now())
+  updatedAt  Timestamp(3)
+
+  @@index([identifier], map: "verification_identifier_idx")
+  @@map("verification")
+}
