@@ -1,0 +1,193 @@
+// use prisma-8
+
+// -----------------------------------------------------------------------------
+// PLACEHOLDER CONTRACT — best-effort translation of prisma/schema.prisma so the
+// Prisma 8 toolchain (`prisma contract emit`) builds locally. It is NOT yet
+// authoritative: `prisma db sign` verifies a contract against the live database
+// byte-for-byte (constraint and index names included), which a hand-written file
+// cannot guarantee. Before signing, regenerate this from the real database:
+//
+//     npx prisma contract infer --output prisma8/contract.prisma
+//
+// then re-apply the two edits the upgrade guide calls for (drop the
+// _prisma_migrations model, keep the @@map names). See docs/prisma8-migration.md.
+//
+// Type mapping from Prisma 7: `Decimal @db.Decimal(12,4)` -> `Numeric(12, 4)`;
+// `DateTime @updatedAt` -> `temporal.updatedAt()`; everything else is unchanged.
+// -----------------------------------------------------------------------------
+
+model User {
+  id            String   @id
+  email         String   @unique
+  name          String?
+  emailVerified Boolean  @default(false) @map("email_verified")
+  image         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     temporal.updatedAt() @map("updated_at")
+
+  goals    Goal[]
+  foodLogs FoodLog[]
+
+  sessions Session[]
+  accounts Account[]
+
+  oauthapplications OauthApplication[]
+  oauthaccesstokens OauthAccessToken[]
+  oauthconsents     OauthConsent[]
+
+  @@map("users")
+}
+
+model Goal {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  unit        String
+  targetValue Numeric(12, 4) @map("target_value")
+  goalType    String   @default("food") @map("goal_type")
+  direction   String   @default("max")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   temporal.updatedAt() @map("updated_at")
+
+  values FoodLogValue[]
+
+  @@index([userId])
+  @@map("goals")
+}
+
+model FoodLog {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  foodName  String   @map("food_name")
+  loggedAt  DateTime @map("logged_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  values FoodLogValue[]
+
+  @@index([userId])
+  @@index([loggedAt])
+  @@map("food_logs")
+}
+
+model FoodLogValue {
+  id        String  @id @default(uuid())
+  foodLogId String  @map("food_log_id")
+  foodLog   FoodLog @relation(fields: [foodLogId], references: [id], onDelete: Cascade)
+  goalId    String  @map("goal_id")
+  goal      Goal    @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  value     Numeric(12, 4)
+
+  @@unique([foodLogId, goalId])
+  @@index([goalId])
+  @@map("food_log_values")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String
+  createdAt DateTime @default(now())
+  updatedAt temporal.updatedAt()
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             temporal.updatedAt()
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  temporal.updatedAt()
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+model OauthApplication {
+  id                String             @id
+  name              String?
+  icon              String?
+  metadata          String?
+  clientId          String?
+  clientSecret      String?
+  redirectUrls      String?
+  type              String?
+  disabled          Boolean?           @default(false)
+  userId            String?
+  user              User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt         DateTime?
+  updatedAt         DateTime?
+  oauthaccesstokens OauthAccessToken[]
+  oauthconsents     OauthConsent[]
+
+  @@unique([clientId])
+  @@index([userId])
+  @@map("oauthApplication")
+}
+
+model OauthAccessToken {
+  id                    String            @id
+  accessToken           String?
+  refreshToken          String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  clientId              String?
+  oauthapplication      OauthApplication? @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  userId                String?
+  user                  User?             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scopes                String?
+  createdAt             DateTime?
+  updatedAt             DateTime?
+
+  @@unique([accessToken])
+  @@unique([refreshToken])
+  @@index([clientId])
+  @@index([userId])
+  @@map("oauthAccessToken")
+}
+
+model OauthConsent {
+  id               String            @id
+  clientId         String?
+  oauthapplication OauthApplication? @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  userId           String?
+  user             User?             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scopes           String?
+  createdAt        DateTime?
+  updatedAt        DateTime?
+  consentGiven     Boolean?
+
+  @@index([clientId])
+  @@index([userId])
+  @@map("oauthConsent")
+}
